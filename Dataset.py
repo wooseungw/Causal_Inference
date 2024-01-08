@@ -20,7 +20,11 @@ def get_all_subdirectories(parent_directory):
         all_subdirs.extend(second_level_subdirs)  # 두 번째 레벨의 디렉토리를 추가
 
     return np.array(all_subdirs)
-        
+"""예제"""
+category_list = get_subdirectories(os.path.join(os.getcwd(),"Dataset/Train/Image"))
+all_list = get_all_subdirectories(os.path.join(os.getcwd(),"Dataset/Train/Image"))
+print(all_list)
+
 class BaseDataset(Dataset):
     def __init__(self, loc = os.path.join(os.getcwd(),"Dataset/Train/Image"), istrain = True):
         self.loc = loc if istrain else loc.replace("Train","Valid")
@@ -31,3 +35,4 @@ class BaseDataset(Dataset):
 class QADataset(BaseDataset):
     def __getitem__(self, index):
         return 
+    
