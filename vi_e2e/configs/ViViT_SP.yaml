@@ -1,0 +1,13 @@
+image_size: 128
+patch_size: 4
+num_classes: 3 
+num_frames: 4
+dim : 192 
+depth : 4 
+heads : 3
+pool : 'cls' 
+in_channels : 3
+dim_head : 64
+dropout : 0.
+emb_dropout : 0.
+scale_dim : 4
