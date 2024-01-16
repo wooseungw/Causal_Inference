@@ -25,9 +25,9 @@ def get_all_subdirectories(parent_directory):
 
     return np.array(all_subdirs)
 """예제"""
-category_list = get_subdirectories(os.path.join(os.getcwd(),"Dataset/Train/Image"))
-all_list = get_all_subdirectories(os.path.join(os.getcwd(),"Dataset/Train/Image"))
-print(all_list)
+# category_list = get_subdirectories(os.path.join(os.getcwd(),"Dataset/Train/Image"))
+# all_list = get_all_subdirectories(os.path.join(os.getcwd(),"Dataset/Train/Image"))
+# print(all_list)
 
 
 class BaseDataset(Dataset):
