@@ -51,12 +51,12 @@ model_kwargs = {
     'num_patches': 64,
     'dropout': 0.1,
     'head_num_layers': 2 
-    }
+}
 
 model = ViT_trans(model_kwargs, lr=1e-3)
 
 # 트레이너 설정 및 학습
    
-trainer = pl.Trainer(max_epochs=10, accelerator='auto', devices=1)
+trainer = pl.Trainer(max_epochs=2, accelerator='auto', devices=1)
 
 trainer.fit(model, train_loader, val_loader)
