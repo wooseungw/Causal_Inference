@@ -10,6 +10,9 @@ from torchmetrics.functional import f1_score
 from torchmetrics import F1Score
 import torch.distributed as dist
 from collections import defaultdict
+from torchvision import transforms, datasets
+import timm  # PyTorch Image Models 라이브러리
+import numpy as np
 
 def img_to_patch(x, patch_size, flatten_channels=True):
     """
@@ -121,7 +124,7 @@ class VisionTransformer(nn.Module):
 
         # Perform classification prediction
         cls = x[0]
-
+        #print("Vit의 cls 모양",cls.shape)
         return cls
 
 
@@ -147,45 +150,28 @@ class VisionTransformer(nn.Module):
         return out
 
 class BaseLighteningClass(pl.LightningModule):
-    
+
     def _calculate_loss(self, batch, mode="train"):
         imgs_list, labels, categories = batch
 
         labels -= 1
-        # Reshape labels to [batch_size, 1]
-        labels = labels.view(-1, 1)
-        print("shape of labels:",labels.shape)
         preds = self(imgs_list)
-        loss = F.cross_entropy(preds, labels.squeeze())
+        loss = F.cross_entropy(preds, labels)
 
-        f1 = f1_score(preds, labels.squeeze(), num_classes=3, task='multiclass')
+        f1 = f1_score(preds, labels, num_classes=3, task='multiclass')
         
         pred_class = preds.argmax(dim=-1)
-        acc = (pred_class == labels.squeeze()).float().mean()
+        acc = (pred_class == labels).float().mean()
 
         self.log("%s_loss" % mode, loss)
         self.log("%s_acc" % mode, acc)
         self.log("%s_f1" % mode, f1)
 
-        return loss, {"preds": pred_class, "gts": labels.squeeze(), "categories": categories}
+        return loss, {"preds": pred_class, "gts": labels, "categories": categories}
 
     def training_step(self, batch, batch_idx):
-        imgs_list, labels, categories = batch
-        labels -= 1
-        labels = labels.view(-1)  # 1차원으로 변환
-        preds = self(imgs_list)
-        loss = F.cross_entropy(preds, labels)
-
-        f1 = f1_score(preds, labels, num_classes=3, task='multiclass')
-        pred_class = preds.argmax(dim=-1)
-        acc = (pred_class == labels).float().mean()
-
-        self.log("train_loss", loss)
-        self.log("train_acc", acc)
-        self.log("train_f1", f1)
-
+        loss, _ = self._calculate_loss(batch, mode="train")
         return loss
-
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         results = []
@@ -196,8 +182,9 @@ class BaseLighteningClass(pl.LightningModule):
             _, result = self._calculate_loss(batch, mode="test")
             results.append(result)
 
-        return results
     
+        return results
+
     def test_step(self, batch, batch_idx):
         _, results = self._calculate_loss(batch, mode="test")
         return results
@@ -211,95 +198,8 @@ class BaseLighteningClass(pl.LightningModule):
         
 
         return {"preds": pred_class, "gts": labels, "categories": categories}
+
         
-
-
-    def on_validation_epoch_end(self):
-        # 검증 에포크가 끝날 때 호출됩니다.
-        validation_step_outputs = self.trainer.logged_metrics
-        self._calculate_macro_fscore(validation_step_outputs, mode="val")
-
-    def on_test_epoch_end(self):
-        # 테스트 에포크가 끝날 때 호출됩니다.
-        test_step_outputs = self.trainer.logged_metrics
-        self._calculate_macro_fscore_test(test_step_outputs, mode="test")
-        
-    def _calculate_macro_fscore_test(self, step_outputs: typing.List[typing.Dict], mode: str):
-        """Uses results from all steps to calculate accuracy per category and macro fscore."""
-        result_dict = defaultdict(list)
-        # First combine results for all steps based on category
-        print('step_outputs:  ', step_outputs)
-        for output in step_outputs:
-            # print(output)
-            # output = output[0]
-            # print(output)
-            print(output)
-            print(type(output))
-            for pred, gt, cat in zip(output["preds"].tolist(), output["gts"].tolist(), output["categories"]):
-                result_dict[cat].append(pred == gt)
-        # NOTE: THESE DISTS CALLS WILL ONLY WORK IF MULTIPLE GPUS ARE IN USE. OTHERWISE THIS CAN RAISE AN ERRO
-        dist.barrier()
-        outputs = [None for _ in range(dist.get_world_size())]
-        dist.all_gather_object(outputs, dict(result_dict))
-        # Ensure only one device calculates the per category accuracy and macro fscore
-        if dist.get_rank() == 0:
-            all_accuracy = []
-            category_results = defaultdict(list)
-            # Combine results across gpu devices
-            for output in outputs:
-                for k, v in output.items():
-                    category_results[k] = category_results[k] + v
-            # Log accuracies and macro f score.
-            for k, v in category_results.items():
-                acc = torch.tensor(v).float().mean()
-                all_accuracy.append(acc)
-                self.log(f'{k}_{mode}_acc', acc, on_step=False, on_epoch=True, rank_zero_only=True)
-            self.log(f"{mode}_f1_macro",
-                     sum(all_accuracy) / len(all_accuracy),
-                     on_step=False,
-                     on_epoch=True,
-                     rank_zero_only=True)
-        return step_outputs
-    def _calculate_macro_fscore(self, step_outputs: typing.List[typing.Dict], mode: str):
-        """Uses results from all steps to calculate accuracy per category and macro fscore."""
-        result_dict = defaultdict(list)
-        
-        for output in step_outputs:
-            preds = output["preds"]
-            gts = output["gts"]
-            categories = output["categories"]
-
-            for pred, gt, cat in zip(preds, gts, categories):
-                result_dict[cat].append(pred == gt)
-
-        # NOTE: THESE DISTS CALLS WILL ONLY WORK IF MULTIPLE GPUS ARE IN USE. OTHERWISE THIS CAN RAISE AN ERROR
-        dist.barrier()
-        outputs = [None for _ in range(dist.get_world_size())]
-        dist.all_gather_object(outputs, dict(result_dict))
-
-        # Ensure only one device calculates the per category accuracy and macro fscore
-        if dist.get_rank() == 0:
-            all_accuracy = []
-            category_results = defaultdict(list)
-
-            # Combine results across gpu devices
-            for output in outputs:
-                for k, v in output.items():
-                    category_results[k] = category_results[k] + v
-
-            # Log accuracies and macro f score.
-            for k, v in category_results.items():
-                acc = torch.tensor(v).float().mean()
-                all_accuracy.append(acc)
-                self.log(f'{k}_{mode}_acc', acc, on_step=False, on_epoch=True, rank_zero_only=True)
-
-            self.log(f"{mode}_f1_macro",
-                    sum(all_accuracy) / len(all_accuracy),
-                    on_step=False,
-                    on_epoch=True,
-                    rank_zero_only=True)
-
-            
 class ViT_trans(BaseLighteningClass):
     def __init__(self, model_kwargs, lr):
         super().__init__()
@@ -315,10 +215,11 @@ class ViT_trans(BaseLighteningClass):
         ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
                                       nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes']))
-        self.f1_cal = F1Score(num_classes=3, task = 'multiclass')
-        
+        self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
+
     def forward(self, x):
-        x = torch.stack(x).permute(1, 0, 2, 3, 4)
+        if isinstance(x, list) and all(isinstance(item, torch.Tensor) for item in x):
+            x = torch.stack(x).permute(1, 0, 2, 3, 4)
         embeddings_list = []
         for imgs in x:
             embeddings = self.model.get_embedding(imgs)  # shape (4, embedding_size)
@@ -335,12 +236,38 @@ class ViT_trans(BaseLighteningClass):
         cls = embeddings[0]
         ################################
         preds = self.mlp_head(cls) # bsz, num_classes
-        preds = preds.squeeze(1)  # labels와 동일한 shape으로 변경
-        print("Shape of preds:", preds.shape)
         return preds
-    
+
     
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
         return [optimizer], [lr_scheduler]
+
+
+if __name__ == "__main__":
+    
+    img = torch.ones([4, 4, 3, 128, 128]).cuda()
+    print("Is x a list of tensors?", all(isinstance(item, torch.Tensor) for item in img))
+    print("Length of x:", len(img))
+
+    model_kwargs = {
+    'embed_dim': 128,
+    'hidden_dim': 512,
+    'num_channels': 3,
+    'num_heads': 8,
+    'num_layers': 6,
+    'num_classes': 3,
+    'patch_size': 4,
+    'num_patches': 64,
+    'dropout': 0.1,
+    'head_num_layers': 2 
+    }
+    model = ViT_trans(model_kwargs,lr=1e-3).cuda()
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
+    parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
+    print('Trainable Parameters: %.3fM' % parameters)
+    
+    out = model(img)
+    
+    print("Shape of out :", out.shape)      # [B, num_classes]

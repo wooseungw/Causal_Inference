@@ -3,3 +3,4 @@
 Dataset/
 __pycache__/
 Dataset.zip
+lightning_logs/
