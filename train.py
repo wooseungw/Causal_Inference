@@ -47,7 +47,7 @@ model_kwargs = {
     'num_heads': 8,
     'num_layers': 6,
     'num_classes': 3,
-    'patch_size': 4,
+    'patch_size': 16,
     'num_patches': 64,
     'dropout': 0.1,
     'head_num_layers': 2 
