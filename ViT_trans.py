@@ -1,33 +1,16 @@
 import typing
 
+from module import Attention, PreNorm, FeedForward
+import pytorch_lightning as pl
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
-from einops import rearrange, repeat
-from einops.layers.torch import Rearrange
-from module import Attention, PreNorm, FeedForward
-import numpy as np
-import pytorch_lightning as pl
-import seaborn as sns
-import torch
-import torch.distributed as dist
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-import torch.utils.data as data
-import torchvision
-# from IPython.display import set_matplotlib_formats
-from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
-from torchvision import transforms
-from torchvision.datasets import CIFAR10
-from pytorch_lightning.loggers import WandbLogger
-from question_loader import *
-from torchvision.models import resnet50
-from torchmetrics import F1Score
 from torchmetrics.functional import f1_score
+from torchmetrics import F1Score
+import torch.distributed as dist
 from collections import defaultdict
 
-#이미지 패치 임베딩
 def img_to_patch(x, patch_size, flatten_channels=True):
     """
     Inputs:
@@ -43,7 +26,7 @@ def img_to_patch(x, patch_size, flatten_channels=True):
     if flatten_channels:
         x = x.flatten(2, 4)  # [B, H'*W', C*p_H*p_W]
     return x
-#어텐션 블록
+
 class AttentionBlock(nn.Module):
     def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
         """
@@ -118,7 +101,6 @@ class VisionTransformer(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, 1 + num_patches, embed_dim))
     def get_embedding(self, x):
         # Preprocess input
-
         x = img_to_patch(x, self.patch_size)
         B, T, _ = x.shape
         x = self.input_layer(x)
@@ -163,33 +145,49 @@ class VisionTransformer(nn.Module):
         cls = x[0]
         out = self.mlp_head(cls)
         return out
-    
-#학습을 위한 코드로 보임
-class BaseLighteningClass(pl.LightningModule):
 
+class BaseLighteningClass(pl.LightningModule):
+    
     def _calculate_loss(self, batch, mode="train"):
         imgs_list, labels, categories = batch
 
         labels -= 1
+        # Reshape labels to [batch_size, 1]
+        labels = labels.view(-1, 1)
+        print("shape of labels:",labels.shape)
         preds = self(imgs_list)
-        loss = F.cross_entropy(preds, labels)
+        loss = F.cross_entropy(preds, labels.squeeze())
 
-        f1 = f1_score(preds, labels, num_classes=3)
+        f1 = f1_score(preds, labels.squeeze(), num_classes=3, task='multiclass')
         
         pred_class = preds.argmax(dim=-1)
-        acc = (pred_class == labels).float().mean()
+        acc = (pred_class == labels.squeeze()).float().mean()
 
         self.log("%s_loss" % mode, loss)
         self.log("%s_acc" % mode, acc)
         self.log("%s_f1" % mode, f1)
 
-        return loss, {"preds": pred_class, "gts": labels, "categories": categories}
+        return loss, {"preds": pred_class, "gts": labels.squeeze(), "categories": categories}
 
     def training_step(self, batch, batch_idx):
-        loss, _ = self._calculate_loss(batch, mode="train")
+        imgs_list, labels, categories = batch
+        labels -= 1
+        labels = labels.view(-1)  # 1차원으로 변환
+        preds = self(imgs_list)
+        loss = F.cross_entropy(preds, labels)
+
+        f1 = f1_score(preds, labels, num_classes=3, task='multiclass')
+        pred_class = preds.argmax(dim=-1)
+        acc = (pred_class == labels).float().mean()
+
+        self.log("train_loss", loss)
+        self.log("train_acc", acc)
+        self.log("train_f1", f1)
+
         return loss
 
-    def validation_step(self, batch, batch_idx, dataloader_idx):
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         results = []
         if dataloader_idx == 0:
             _, result = self._calculate_loss(batch, mode="val")
@@ -198,9 +196,8 @@ class BaseLighteningClass(pl.LightningModule):
             _, result = self._calculate_loss(batch, mode="test")
             results.append(result)
 
-    
         return results
-
+    
     def test_step(self, batch, batch_idx):
         _, results = self._calculate_loss(batch, mode="test")
         return results
@@ -216,12 +213,17 @@ class BaseLighteningClass(pl.LightningModule):
         return {"preds": pred_class, "gts": labels, "categories": categories}
         
 
-    def validation_epoch_end(self, validation_step_outputs: typing.List[typing.Dict]):
+
+    def on_validation_epoch_end(self):
+        # 검증 에포크가 끝날 때 호출됩니다.
+        validation_step_outputs = self.trainer.logged_metrics
         self._calculate_macro_fscore(validation_step_outputs, mode="val")
 
-    def test_epoch_end(self, validation_step_outputs: typing.List[typing.Dict]):
-        self._calculate_macro_fscore_test(validation_step_outputs, mode="test")
-
+    def on_test_epoch_end(self):
+        # 테스트 에포크가 끝날 때 호출됩니다.
+        test_step_outputs = self.trainer.logged_metrics
+        self._calculate_macro_fscore_test(test_step_outputs, mode="test")
+        
     def _calculate_macro_fscore_test(self, step_outputs: typing.List[typing.Dict], mode: str):
         """Uses results from all steps to calculate accuracy per category and macro fscore."""
         result_dict = defaultdict(list)
@@ -258,47 +260,46 @@ class BaseLighteningClass(pl.LightningModule):
                      on_epoch=True,
                      rank_zero_only=True)
         return step_outputs
-
     def _calculate_macro_fscore(self, step_outputs: typing.List[typing.Dict], mode: str):
         """Uses results from all steps to calculate accuracy per category and macro fscore."""
         result_dict = defaultdict(list)
-        # First combine results for all steps based on category
-        # print('step_outputs:  ',step_outputs)
+        
         for output in step_outputs:
-            for sub_output in output:
-                for sub_sub_output in sub_output:
+            preds = output["preds"]
+            gts = output["gts"]
+            categories = output["categories"]
 
-                    # print(output)
-                    # output = output[0]
-                    # print(output)
-                    print(sub_sub_output)
-                    print(type(sub_sub_output))
-                    for pred, gt, cat in zip(sub_sub_output["preds"].tolist(), sub_sub_output["gts"].tolist(), sub_sub_output["categories"]):
-                        result_dict[cat].append(pred == gt)
-        # NOTE: THESE DISTS CALLS WILL ONLY WORK IF MULTIPLE GPUS ARE IN USE. OTHERWISE THIS CAN RAISE AN ERRO
+            for pred, gt, cat in zip(preds, gts, categories):
+                result_dict[cat].append(pred == gt)
+
+        # NOTE: THESE DISTS CALLS WILL ONLY WORK IF MULTIPLE GPUS ARE IN USE. OTHERWISE THIS CAN RAISE AN ERROR
         dist.barrier()
         outputs = [None for _ in range(dist.get_world_size())]
         dist.all_gather_object(outputs, dict(result_dict))
+
         # Ensure only one device calculates the per category accuracy and macro fscore
         if dist.get_rank() == 0:
             all_accuracy = []
             category_results = defaultdict(list)
+
             # Combine results across gpu devices
             for output in outputs:
                 for k, v in output.items():
                     category_results[k] = category_results[k] + v
+
             # Log accuracies and macro f score.
             for k, v in category_results.items():
                 acc = torch.tensor(v).float().mean()
                 all_accuracy.append(acc)
                 self.log(f'{k}_{mode}_acc', acc, on_step=False, on_epoch=True, rank_zero_only=True)
-            self.log(f"{mode}_f1_macro",
-                     sum(all_accuracy) / len(all_accuracy),
-                     on_step=False,
-                     on_epoch=True,
-                     rank_zero_only=True)
 
-'''실제 학습에 사용되는 ViT 모델'''
+            self.log(f"{mode}_f1_macro",
+                    sum(all_accuracy) / len(all_accuracy),
+                    on_step=False,
+                    on_epoch=True,
+                    rank_zero_only=True)
+
+            
 class ViT_trans(BaseLighteningClass):
     def __init__(self, model_kwargs, lr):
         super().__init__()
@@ -314,8 +315,8 @@ class ViT_trans(BaseLighteningClass):
         ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
                                       nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes']))
-        self.f1_cal = F1Score(num_classes=3)
-
+        self.f1_cal = F1Score(num_classes=3, task = 'multiclass')
+        
     def forward(self, x):
         x = torch.stack(x).permute(1, 0, 2, 3, 4)
         embeddings_list = []
@@ -334,8 +335,10 @@ class ViT_trans(BaseLighteningClass):
         cls = embeddings[0]
         ################################
         preds = self.mlp_head(cls) # bsz, num_classes
+        preds = preds.squeeze(1)  # labels와 동일한 shape으로 변경
+        print("Shape of preds:", preds.shape)
         return preds
-
+    
     
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)

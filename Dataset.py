@@ -4,6 +4,7 @@ import json
 import numpy as np
 from torch.utils.data import Dataset
 from torchvision import transforms
+import torch
 
 """주소 불러오는 함수"""
 def get_subdirectories(parent_directory):
@@ -36,12 +37,64 @@ class BaseDataset(Dataset):
     def __len__(self):
         return len(self.dir_names)
 
+import os
+import json
+import cv2
+from torchvision import transforms
 class QADataset(BaseDataset):
     def __init__(self, loc=os.path.join(os.getcwd(), "Dataset/Train/Image"), istrain=True):
         super(QADataset, self).__init__(loc, istrain)
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((224, 224)),
+            transforms.Resize((128, 128)),
+            transforms.ToTensor()
+        ])
+
+    def __getitem__(self, index):
+        dir_path = self.dir_names[index]
+        dir_name = os.path.basename(dir_path)
+        category_name = os.path.basename(os.path.dirname(dir_path))
+        json_path = os.path.join(dir_path, dir_name + ".json")
+
+        with open(json_path, 'r') as file:
+            data = json.load(file)
+
+        # 모든 이미지 (질문 + 답변)를 하나의 리스트에 저장
+        all_images = []
+
+        # 질문 이미지 추가
+        question_image_path = os.path.join(dir_path, data['Questions'][0]['images'][0]['image_url'])
+        question_image = cv2.imread(question_image_path)
+        question_image = cv2.cvtColor(question_image, cv2.COLOR_BGR2RGB)
+        question_image = self.transform(question_image)
+        all_images.append(question_image)
+
+        # 답변 이미지 추가
+        for answer in data['Answers']:
+            answer_image_path = os.path.join(dir_path, answer['images'][0]['image_url'])
+            answer_image = cv2.imread(answer_image_path)
+            answer_image = cv2.cvtColor(answer_image, cv2.COLOR_BGR2RGB)
+            answer_image = self.transform(answer_image)
+            all_images.append(answer_image)
+
+        # 정답 그룹 ID 및 추가 정보 반환
+        correct_answer_group_id = data['Answers'][0]['group_id']
+        category_name = data['category']
+
+        # 이미지 텐서를 하나의 텐서로 결합
+        all_images_tensor = torch.stack(all_images)
+
+        # 모든 이미지와 추가 정보를 반환
+        return tuple(all_images_tensor), correct_answer_group_id, category_name
+
+
+'''
+class QADataset2(BaseDataset):
+    def __init__(self, loc=os.path.join(os.getcwd(), "Dataset/Train/Image"), istrain=True):
+        super(QADataset2, self).__init__(loc, istrain)
+        self.transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize((128, 128)),
             transforms.ToTensor()
         ])
 
@@ -76,8 +129,8 @@ class QADataset(BaseDataset):
         correct_answer_group_id = data['Answers'][0]['group_id']
 
         return question_image, answer_images, correct_answer_group_id, category_name
+'''
 
-# 사용 예시
-dataset = QADataset()
-question_image, answer_images, correct_answer_group_id, category_name = dataset[0]
+
+ 
  
