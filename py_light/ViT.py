@@ -1,7 +1,8 @@
 import typing
 
-from BaseLighteningClass import BaseLighteningClass
-from module import Attention, PreNorm, FeedForward
+from py_light.BaseLighteningClass import BaseLighteningClass
+from py_light.module import Attention, PreNorm, FeedForward
+
 import pytorch_lightning as pl
 import torch
 from torch import nn, einsum
