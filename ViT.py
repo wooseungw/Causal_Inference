@@ -149,7 +149,6 @@ class VisionTransformer(nn.Module):
         cls = x[0]
         out = self.mlp_head(cls)
         return out
-
         
 class ViT_trans(BaseLighteningClass):
     def __init__(self, model_kwargs, lr):

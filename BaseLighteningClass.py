@@ -2,12 +2,13 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 from torchmetrics.functional import f1_score
 from torchmetrics import F1Score
+import torch
 
 class BaseLighteningClass(pl.LightningModule):
 
     def _calculate_loss(self, batch, mode="train"):
         imgs_list, labels, categories = batch
-
+        labels = torch.squeeze(labels)
         labels -= 1
         preds = self(imgs_list)
         loss = F.cross_entropy(preds, labels)
@@ -35,7 +36,6 @@ class BaseLighteningClass(pl.LightningModule):
         else:
             _, result = self._calculate_loss(batch, mode="test")
             results.append(result)
-
     
         return results
 

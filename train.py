@@ -33,8 +33,8 @@ def train():
 
     from torch.utils.data import DataLoader
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=256,shuffle=True,num_workers=6,pin_memory=True) 
-    val_loader = DataLoader(train_dataset, batch_size=256,num_workers=6,pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=256,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(train_dataset, batch_size=256,num_workers=6,pin_memory=True, persistent_workers=True)
 
     import torch
     from ViT import ViT_trans

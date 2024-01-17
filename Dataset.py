@@ -74,7 +74,8 @@ class QADataset(BaseDataset):
         # 질문 이미지와 정답 이미지들을 하나의 텐서로 결합
         images_stack = torch.stack([question_image] + answer_images, dim=0)
 
-        correct_answer_group_id = data['correct_answer_group_ID']
+
+        correct_answer_group_id = torch.tensor(data['correct_answer_group_ID'],dtype=torch.long)
 
         return images_stack, correct_answer_group_id, category_name
 
