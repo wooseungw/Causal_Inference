@@ -13,8 +13,8 @@ def train():
     
     test_transform = transforms.Compose(
         [
-            transforms.ToTensor(),
             transforms.Resize((128,128)),
+            transforms.ToTensor(),
             transforms.Normalize([0.7760, 0.7491, 0.7213], [0.2949, 0.3032, 0.3314]),
         ]
     )
