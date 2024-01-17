@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from BaseLighteningClass import BaseLighteningClass
+
 #기본 Conv블럭에 잔차연결 추가
 '''사용하지 않습니다.'''
 class ConvBlock_redisual(nn.Module):
