@@ -30,7 +30,7 @@ def train():
     )
 
     dir = os.path.join(os.getcwd(),"Dataset/Train/Image")
-    train_dataset = QADataset(transform=train_transform, loc = dir)
+    train_dataset = QADataset(transform = train_transform, loc = dir)
     print(len(train_dataset))
     val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
     print(len(val_dataset))
@@ -38,7 +38,7 @@ def train():
     from torch.utils.data import DataLoader
     # DataLoader 설정
     train_loader = DataLoader(train_dataset, batch_size=256,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(train_dataset, batch_size=256,num_workers=6,pin_memory=True, persistent_workers=True)
+    val_loader = DataLoader(val_dataset, batch_size=256,num_workers=6,pin_memory=True, persistent_workers=True)
 
     import torch
     from ViT import ViT_trans
