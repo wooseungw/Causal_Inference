@@ -2,7 +2,7 @@ import os
 import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from py_light.Dataset import QADataset
+from Dataset import QADataset
 from torchvision import transforms
 from PIL import ImageFile
 from pytorch_lightning.loggers import WandbLogger
