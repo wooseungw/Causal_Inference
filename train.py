@@ -5,8 +5,12 @@ from torch.utils.data import DataLoader
 from Dataset import QADataset
 from torchvision import transforms
 from PIL import ImageFile
+from pytorch_lightning.loggers import WandbLogger
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 def train():
+    # initialise the wandb logger and name your wandb project
+    wandb_logger = WandbLogger(project='caual_inference')
+    
     test_transform = transforms.Compose(
         [
             transforms.ToTensor(),
@@ -58,7 +62,7 @@ def train():
 
     # 트레이너 설정 및 학습
     
-    trainer = pl.Trainer(max_epochs=10, accelerator='auto', devices=1)
+    trainer = pl.Trainer(max_epochs=10, accelerator='auto', devices=1, log_every_n_steps=100,logger=wandb_logger)
 
     trainer.fit(model, train_loader, val_loader)
     
