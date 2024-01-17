@@ -61,9 +61,7 @@ def train():
     model = ViT_trans(model_kwargs, lr=1e-3)
 
     # 트레이너 설정 및 학습
-    
-    trainer = pl.Trainer(max_epochs=10, accelerator='auto', devices=1, log_every_n_steps=100,logger=wandb_logger)
-
+    trainer = pl.Trainer(max_epochs=10, accelerator='auto', devices=1, log_every_n_steps=10,logger=wandb_logger)
     trainer.fit(model, train_loader, val_loader)
     
 if __name__ == '__main__':
