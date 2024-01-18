@@ -4,3 +4,5 @@ Dataset/
 __pycache__/
 Dataset.zip
 lightning_logs/
+wandb/
+casual_inference/
