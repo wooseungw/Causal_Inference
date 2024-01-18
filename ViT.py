@@ -155,35 +155,39 @@ class ViT_trans(BaseLightningClass):
         super().__init__()
         self.save_hyperparameters()
         self.model = VisionTransformer(**model_kwargs)
+        ##############################
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
         self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
         self.dropout = nn.Dropout(model_kwargs['dropout'])
         self.transformer = nn.Sequential(
             *(AttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
         )
+        ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
                                       nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes']))
-        self.f1_cal = F1Score(num_classes=3, task='multiclass')  # F1 score 계산에 대한 초기화
+        self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
 
     def forward(self, x):
-        x = torch.stack(x).permute(1, 0, 2, 3, 4)
+        if isinstance(x, list) and all(isinstance(item, torch.Tensor) for item in x):
+            x = torch.stack(x).permute(1, 0, 2, 3, 4)
         embeddings_list = []
         for imgs in x:
-            embeddings = self.model.get_embedding(imgs)
+            embeddings = self.model.get_embedding(imgs)  # shape (4, embedding_size)
             embeddings_list.append(embeddings)
-        embeddings = torch.stack(embeddings_list, 0)
+        embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
+        ###############################
         B, _, _ = embeddings.shape
-        cls_token = self.cls_token.repeat(B, 1, 1)
-        embeddings = torch.cat([cls_token, embeddings], dim=1)
+        cls_token = self.cls_token.repeat(B, 1, 1) # [B, 1, embed_dim]
+        embeddings = torch.cat([cls_token, embeddings], dim=1) # [B, 5, embed_dim]
         embeddings = embeddings + self.pos_embedding
         embeddings = self.dropout(embeddings)
-        embeddings = embeddings.transpose(0, 1)
+        embeddings = embeddings.transpose(0, 1) # [5, B, embed_dim]
         embeddings = self.transformer(embeddings)
         cls = embeddings[0]
-        preds = self.mlp_head(cls)
-        preds = preds.squeeze(1)
+        ################################
+        preds = self.mlp_head(cls) # bsz, num_classes
         return preds
-
+    
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
@@ -197,21 +201,21 @@ if __name__ == "__main__":
     print("Length of x:", len(img))
 
     model_kwargs = {
-    'embed_dim': 128,
-    'hidden_dim': 512,
-    'num_channels': 3,
-    'num_heads': 8,
-    'num_layers': 6,
-    'num_classes': 3,
-    'patch_size': 4,
-    'num_patches': 64,
-    'dropout': 0.1,
-    'head_num_layers': 2 
+        'embed_dim': 128,
+        'hidden_dim': 512,
+        'num_channels': 3,
+        'num_heads': 8,
+        'num_layers': 6,
+        'num_classes': 3,
+        'patch_size': 16,
+        'num_patches': 64,
+        'dropout': 0.1,
+        'head_num_layers': 2 
     }
     model = ViT_trans(model_kwargs,lr=1e-3).cuda()
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
-    print('학습가능한 파라미터 수: %.3fM' % parameters)
+    print('Trainable Parameters: %.3fM' % parameters)
     
     out = model(img)
     

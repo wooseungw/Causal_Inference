@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from BaseLightningClass import BaseLighteningClass
+from BaseLightningClass import BaseLightningClass
 import torch.optim as optim
 from torchmetrics.functional import f1_score
 from torchmetrics import F1Score

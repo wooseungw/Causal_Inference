@@ -7,7 +7,7 @@ from torchvision import transforms
 from PIL import ImageFile
 from pytorch_lightning.loggers import WandbLogger
 import torch
-from ViT import ViT_trans
+from unet import Unet_pl
 
 from pytorch_lightning.callbacks import Callback
 
@@ -48,39 +48,25 @@ def train():
     val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
     print(len(val_dataset))
 
-
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=256,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=256,num_workers=6,pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=128,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=128,num_workers=6,pin_memory=True, persistent_workers=True)
 
-
-
-    #torch.set_float32_matmul_precision('high')
-    # 모델 인스턴스 생성
     model_kwargs = {
-        'embed_dim': 128,
-        'hidden_dim': 512,
-        'num_channels': 3,
-        'num_heads': 8,
-        'num_layers': 6,
-        'num_classes': 3,
-        'patch_size': 16,
-        'num_patches': 64,
-        'dropout': 0.1,
-        'head_num_layers': 2 
+    'num_classes': 3,
+    'dropout': 0.1,
     }
-
-    model = ViT_trans(model_kwargs, lr=1e-3)
+    model = Unet_pl(model_kwargs, lr=1e-3)
 
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
-        max_epochs=20,
-        accelerator='auto',
-        devices=1,
-        log_every_n_steps=10,
-        logger=wandb_logger,
-        callbacks=[print_callback]  # 콜백 추가
-    )
+    max_epochs=20,
+    accelerator='auto',
+    devices=1,
+    log_every_n_steps=10,
+    logger=wandb_logger,
+    callbacks=[print_callback]  # 콜백 추가
+)
     trainer.fit(model, train_loader, val_loader)
     
 if __name__ == '__main__':
