@@ -11,13 +11,6 @@ from unet import Unet_pl
 
 from pytorch_lightning.callbacks import Callback
 
-class PrintCallback(Callback):
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        if (batch_idx + 1) % 10 == 0:
-            print(f"Epoch {trainer.current_epoch}, Step {batch_idx + 1}: Loss {outputs['loss']}")
-
-# 콜백 인스턴스 생성
-print_callback = PrintCallback()
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 def train():
@@ -49,8 +42,8 @@ def train():
     print(len(val_dataset))
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=128,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=128,num_workers=6,pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=32,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=32,num_workers=6,pin_memory=True, persistent_workers=True)
 
     model_kwargs = {
     'num_classes': 3,
@@ -64,8 +57,7 @@ def train():
     accelerator='auto',
     devices=1,
     log_every_n_steps=10,
-    logger=wandb_logger,
-    callbacks=[print_callback]  # 콜백 추가
+    logger=wandb_logger
 )
     trainer.fit(model, train_loader, val_loader)
     

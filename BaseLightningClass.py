@@ -20,13 +20,12 @@ class BaseLightningClass(pl.LightningModule):
         acc = (pred_class == labels).float().mean()
 
         # 에폭당 로그 기록 간격 설정
-        log_interval = max(1, len(self.trainer.train_dataloader) // 12)
-
-        # 특정 간격마다 로그 기록
-        if (self.global_step + 1) % log_interval == 0 or (self.global_step + 1) == len(self.trainer.train_dataloader):
-            self.log("%s_loss" % mode, loss, on_step=True, on_epoch=True)
-            self.log("%s_acc" % mode, acc, on_step=True, on_epoch=True)
-            self.log("%s_f1" % mode, f1, on_step=True, on_epoch=True)
+        if self.trainer.num_training_batches is not None:
+            log_interval = max(1, self.trainer.num_training_batches // 10)
+            if (self.global_step + 1) % log_interval == 0:
+                self.log("%s_loss" % mode, loss, on_step=True, on_epoch=True)
+                self.log("%s_acc" % mode, acc, on_step=True, on_epoch=True)
+                self.log("%s_f1" % mode, f1, on_step=True, on_epoch=True)
 
         return loss, {"preds": pred_class, "gts": labels, "categories": categories}
 

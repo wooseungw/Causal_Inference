@@ -8,19 +8,9 @@ from PIL import ImageFile
 from pytorch_lightning.loggers import WandbLogger
 import torch
 from ViT import ViT_trans
-
-from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.callbacks import ModelCheckpoint
-
-class PrintCallback(Callback):
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        if (batch_idx + 1) % 10 == 0:
-            print(f"Epoch {trainer.current_epoch}, Step {batch_idx + 1}: Loss {outputs['loss']}")
-
-# 콜백 인스턴스 생성
-print_callback = PrintCallback()
-
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 def train():
     # 모델 인스턴스 생성
     model_kwargs = {
@@ -62,12 +52,9 @@ def train():
     val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
     print(len(val_dataset))
 
-
     # DataLoader 설정
     train_loader = DataLoader(train_dataset, batch_size=256,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
     val_loader = DataLoader(val_dataset, batch_size=256,num_workers=6,pin_memory=True, persistent_workers=True)
-
-
 
     #torch.set_float32_matmul_precision('high')
     
@@ -79,7 +66,6 @@ def train():
         monitor="val_loss",  # 모니터링할 메트릭
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
-
 
     model = ViT_trans(model_kwargs, lr=1e-3)
 
