@@ -21,7 +21,7 @@ class BaseLighteningClass(pl.LightningModule):
         self.log("%s_loss" % mode, loss)
         self.log("%s_acc" % mode, acc)
         self.log("%s_f1" % mode, f1)
-
+        print(mode,"_loss: ",  loss , mode, "_acc: ", acc, mode, "_f1: ", f1)
         return loss, {"preds": pred_class, "gts": labels, "categories": categories}
 
     def training_step(self, batch, batch_idx):

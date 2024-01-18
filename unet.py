@@ -149,4 +149,5 @@ class Unet(nn.Module):
         x_d = self.classifier(x)
         return x_d
     
-class Unet():
+class Unet_pl(BaseLighteningClass):
+    

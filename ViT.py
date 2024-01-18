@@ -129,7 +129,6 @@ class VisionTransformer(nn.Module):
         #print("Vit의 cls 모양",cls.shape)
         return cls
 
-
     def forward(self, x):
         # Preprocess input
         x = img_to_patch(x, self.patch_size)
