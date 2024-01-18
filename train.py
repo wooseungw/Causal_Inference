@@ -10,6 +10,7 @@ import torch
 from ViT import ViT_trans
 
 from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 class PrintCallback(Callback):
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
@@ -21,6 +22,19 @@ print_callback = PrintCallback()
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 def train():
+    # 모델 인스턴스 생성
+    model_kwargs = {
+        'embed_dim': 128,
+        'hidden_dim': 512,
+        'num_channels': 3,
+        'num_heads': 8,
+        'num_layers': 6,
+        'num_classes': 3,
+        'patch_size': 16,
+        'num_patches': 64,
+        'dropout': 0.1,
+        'head_num_layers': 2,
+    }
     # initialise the wandb logger and name your wandb project
     wandb_logger = WandbLogger(project='casual_inference')
     
@@ -56,19 +70,16 @@ def train():
 
 
     #torch.set_float32_matmul_precision('high')
-    # 모델 인스턴스 생성
-    model_kwargs = {
-        'embed_dim': 128,
-        'hidden_dim': 512,
-        'num_channels': 3,
-        'num_heads': 8,
-        'num_layers': 6,
-        'num_classes': 3,
-        'patch_size': 16,
-        'num_patches': 64,
-        'dropout': 0.1,
-        'head_num_layers': 2 
-    }
+    
+    # 체크포인트 콜백 설정
+    checkpoint_callback = ModelCheckpoint(
+        dirpath="model_checkpoint/",
+        filename="ViT_{epoch}-{val_loss:.2f}",
+        save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
+        monitor="val_loss",  # 모니터링할 메트릭
+        mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
+    )
+
 
     model = ViT_trans(model_kwargs, lr=1e-3)
 
@@ -79,7 +90,7 @@ def train():
         devices=1,
         log_every_n_steps=10,
         logger=wandb_logger,
-        callbacks=[print_callback]  # 콜백 추가
+        callbacks=[checkpoint_callback],
     )
     trainer.fit(model, train_loader, val_loader)
     

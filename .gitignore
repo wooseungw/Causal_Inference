@@ -6,3 +6,4 @@ Dataset.zip
 lightning_logs/
 wandb/
 casual_inference/
+model_checkpoint/
