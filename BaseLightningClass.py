@@ -36,20 +36,16 @@ class BaseLightningClass(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        results = []
-        if dataloader_idx == 0:
-            _, result = self._calculate_loss(batch, mode="val")
-            results.append(result)
-        else:
-            _, result = self._calculate_loss(batch, mode="test")
-            results.append(result)
-    
-        return results
-
+        _, result = self._calculate_loss(batch, mode="val")
+        # 검증 손실 로그 기록
+        self.log("val_loss", result[0], on_step=False, on_epoch=True)
+        return result
     def test_step(self, batch, batch_idx):
-        _, results = self._calculate_loss(batch, mode="test")
-        return results
-    
+        _, result = self._calculate_loss(batch, mode="test")
+        # 검증 손실 로그 기록
+        self.log("test_loss", result[0], on_step=False, on_epoch=True)
+        return result
+
     def predict_step(self, batch, batch_idx):
         imgs_list, labels, categories = batch
 
