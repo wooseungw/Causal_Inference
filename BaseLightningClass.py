@@ -37,13 +37,16 @@ class BaseLightningClass(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         _, result = self._calculate_loss(batch, mode="val")
-        # 검증 손실 로그 기록
-        self.log("val_loss", result[0], on_step=False, on_epoch=True)
+        # result 딕셔너리에서 필요한 값을 올바르게 추출
+        # 예: loss 값 추출
+        val_loss = result["loss"]
+        self.log("val_loss", val_loss, on_step=False, on_epoch=True)
         return result
     def test_step(self, batch, batch_idx):
         _, result = self._calculate_loss(batch, mode="test")
         # 검증 손실 로그 기록
-        self.log("test_loss", result[0], on_step=False, on_epoch=True)
+        test_loss = result['loss']
+        self.log("test_loss", test_loss, on_step=False, on_epoch=True)
         return result
 
     def predict_step(self, batch, batch_idx):
