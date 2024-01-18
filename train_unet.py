@@ -56,7 +56,7 @@ def train():
     max_epochs=20,
     accelerator='auto',
     devices=1,
-    log_every_n_steps=10,
+    log_every_n_steps=10*8,
     logger=wandb_logger
 )
     trainer.fit(model, train_loader, val_loader)
