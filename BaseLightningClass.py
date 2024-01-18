@@ -4,7 +4,7 @@ from torchmetrics.functional import f1_score
 from torchmetrics import F1Score
 import torch
 
-class BaseLighteningClass(pl.LightningModule):
+class BaseLightningClass(pl.LightningModule):
 
     def _calculate_loss(self, batch, mode="train"):
         imgs_list, labels, categories = batch

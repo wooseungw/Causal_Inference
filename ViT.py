@@ -1,6 +1,6 @@
 import typing
 
-from BaseLighteningClass import BaseLighteningClass
+from BaseLightningClass import BaseLightningClass
 from module import Attention, PreNorm, FeedForward
 
 import pytorch_lightning as pl
@@ -150,44 +150,40 @@ class VisionTransformer(nn.Module):
         out = self.mlp_head(cls)
         return out
         
-class ViT_trans(BaseLighteningClass):
+class ViT_trans(BaseLightningClass):
     def __init__(self, model_kwargs, lr):
         super().__init__()
         self.save_hyperparameters()
         self.model = VisionTransformer(**model_kwargs)
-        ##############################
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
         self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
         self.dropout = nn.Dropout(model_kwargs['dropout'])
         self.transformer = nn.Sequential(
             *(AttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
         )
-        ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
                                       nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes']))
-        self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
+        self.f1_cal = F1Score(num_classes=3, task='multiclass')  # F1 score 계산에 대한 초기화
 
     def forward(self, x):
-        if isinstance(x, list) and all(isinstance(item, torch.Tensor) for item in x):
-            x = torch.stack(x).permute(1, 0, 2, 3, 4)
+        x = torch.stack(x).permute(1, 0, 2, 3, 4)
         embeddings_list = []
         for imgs in x:
-            embeddings = self.model.get_embedding(imgs)  # shape (4, embedding_size)
+            embeddings = self.model.get_embedding(imgs)
             embeddings_list.append(embeddings)
-        embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
-        ###############################
+        embeddings = torch.stack(embeddings_list, 0)
         B, _, _ = embeddings.shape
-        cls_token = self.cls_token.repeat(B, 1, 1) # [B, 1, embed_dim]
-        embeddings = torch.cat([cls_token, embeddings], dim=1) # [B, 5, embed_dim]
+        cls_token = self.cls_token.repeat(B, 1, 1)
+        embeddings = torch.cat([cls_token, embeddings], dim=1)
         embeddings = embeddings + self.pos_embedding
         embeddings = self.dropout(embeddings)
-        embeddings = embeddings.transpose(0, 1) # [5, B, embed_dim]
+        embeddings = embeddings.transpose(0, 1)
         embeddings = self.transformer(embeddings)
         cls = embeddings[0]
-        ################################
-        preds = self.mlp_head(cls) # bsz, num_classes
+        preds = self.mlp_head(cls)
+        preds = preds.squeeze(1)
         return preds
-    
+
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
@@ -215,7 +211,7 @@ if __name__ == "__main__":
     model = ViT_trans(model_kwargs,lr=1e-3).cuda()
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
-    print('Trainable Parameters: %.3fM' % parameters)
+    print('학습가능한 파라미터 수: %.3fM' % parameters)
     
     out = model(img)
     
