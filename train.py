@@ -7,7 +7,7 @@ from torchvision import transforms
 from PIL import ImageFile
 from pytorch_lightning.loggers import WandbLogger
 import torch
-from ViT import ViT_trans
+from ViT import *
 from pytorch_lightning.callbacks import ModelCheckpoint
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -55,8 +55,8 @@ def train():
     print(len(val_dataset))
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=64,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=64,num_workers=6,pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=128,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=128,num_workers=6,pin_memory=True, persistent_workers=True)
 
     #torch.set_float32_matmul_precision('high')
     
@@ -69,11 +69,11 @@ def train():
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
 
-    model = ViT_trans(model_kwargs, lr=1e-3)
-
+    #model = ViT_trans(model_kwargs, lr=1e-3)
+    model = ViT_QA(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
-        max_epochs=4,
+        max_epochs=5,
         accelerator='auto',
         devices=1,
         log_every_n_steps=10,
