@@ -49,7 +49,16 @@ def train():
     'num_classes': 3,
     'dropout': 0.1,
     }
-    model = Unet_pl(model_kwargs, lr=1e-3)
+    # 체크포인트 파일 경로 설정
+    checkpoint_path = 'path/to/your/checkpoint.ckpt'
+    # 체크포인트 파일이 존재하는지 확인
+    if os.path.isfile(checkpoint_path):
+        # 체크포인트에서 모델 상태 불러오기
+        model = Unet_pl.load_from_checkpoint(checkpoint_path)
+    else:
+        # 체크포인트가 없으면 새 모델 인스턴스 생성
+        model = Unet_pl(model_kwargs, lr=1e-3)
+    
 
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(

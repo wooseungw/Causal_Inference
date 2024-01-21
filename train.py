@@ -13,17 +13,19 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def train():
     # 모델 인스턴스 생성
+    #패치 사이즈
+    p_s = 16
     model_kwargs = {
-        'embed_dim': 128,
-        'hidden_dim': 512,
+        'embed_dim': (p_s*p_s*3),
+        'hidden_dim': (p_s*p_s*3)*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
         'num_classes': 3,
-        'patch_size': 16,
-        'num_patches': 64,
+        'patch_size': p_s,
+        'num_patches': (128//p_s)**2,
         'dropout': 0.1,
-        'head_num_layers': 2,
+        'head_num_layers': 2 
     }
     # initialise the wandb logger and name your wandb project
     wandb_logger = WandbLogger(project='casual_inference')
@@ -53,14 +55,14 @@ def train():
     print(len(val_dataset))
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=256,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=256,num_workers=6,pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=64,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=64,num_workers=6,pin_memory=True, persistent_workers=True)
 
     #torch.set_float32_matmul_precision('high')
     
     # 체크포인트 콜백 설정
     checkpoint_callback = ModelCheckpoint(
-        dirpath="model_checkpoint/",
+        dirpath="model_checkpoint/vit",
         filename="ViT_{epoch}-{val_loss:.2f}",
         save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
         monitor="val_loss",  # 모니터링할 메트릭
@@ -71,7 +73,7 @@ def train():
 
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
-        max_epochs=20,
+        max_epochs=4,
         accelerator='auto',
         devices=1,
         log_every_n_steps=10,

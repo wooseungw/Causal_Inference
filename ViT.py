@@ -5,6 +5,7 @@ from module import Attention, PreNorm, FeedForward
 
 import pytorch_lightning as pl
 import torch
+from einops.layers.torch import Rearrange
 from torch import nn, einsum
 import torch.nn.functional as F
 import torch.optim as optim
@@ -31,6 +32,7 @@ def img_to_patch(x, patch_size, flatten_channels=True):
     if flatten_channels:
         x = x.flatten(2, 4)  # [B, H'*W', C*p_H*p_W]
     return x
+
 
 class AttentionBlock(nn.Module):
     def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
@@ -93,8 +95,12 @@ class VisionTransformer(nn.Module):
 
         self.patch_size = patch_size
 
+        self.embedding = nn.Sequential(
+            nn.Conv2d(3,embed_dim,kernel_size=patch_size,stride=patch_size),
+            Rearrange('b e (h) (w) -> b (h w) e')
+        )
         # Layers/Networks
-        self.input_layer = nn.Linear(num_channels * (patch_size**2), embed_dim)
+        #self.input_layer = nn.Linear(num_channels * (patch_size**2), embed_dim)
         self.transformer = nn.Sequential(
             *(AttentionBlock(embed_dim, hidden_dim, num_heads, dropout=dropout) for _ in range(num_layers))
         )
@@ -106,9 +112,10 @@ class VisionTransformer(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, 1 + num_patches, embed_dim))
     def get_embedding(self, x):
         # Preprocess input
-        x = img_to_patch(x, self.patch_size)
+        #x = img_to_patch(x, self.patch_size)
+        x = self.embedding(x)
         B, T, _ = x.shape
-        x = self.input_layer(x)
+        #x = self.input_layer(x)
 
         # Add CLS token and positional encoding
         cls_token = self.cls_token.repeat(B, 1, 1)
@@ -131,9 +138,10 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x):
         # Preprocess input
-        x = img_to_patch(x, self.patch_size)
+        #x = img_to_patch(x, self.patch_size)
+        x = self.embedding(x)
         B, T, _ = x.shape
-        x = self.input_layer(x)
+        #x = self.input_layer(x)
 
         # Add CLS token and positional encoding
         cls_token = self.cls_token.repeat(B, 1, 1)
@@ -174,11 +182,15 @@ class ViT_trans(BaseLightningClass):
         for imgs in x:
             embeddings = self.model.get_embedding(imgs)  # shape (4, embedding_size)
             embeddings_list.append(embeddings)
+        #print("get_embeding의 임베딩 모양",embeddings.shape)
         embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
+        #print("stack을 쌓은 뒤 임베딩 모양",embeddings.shape)
         ###############################
         B, _, _ = embeddings.shape
         cls_token = self.cls_token.repeat(B, 1, 1) # [B, 1, embed_dim]
+        #print("cls_token  모양",cls_token.shape)
         embeddings = torch.cat([cls_token, embeddings], dim=1) # [B, 5, embed_dim]
+        #print("cls토큰이 결합 된 뒤 embeding 모양",embeddings.shape)
         embeddings = embeddings + self.pos_embedding
         embeddings = self.dropout(embeddings)
         embeddings = embeddings.transpose(0, 1) # [5, B, embed_dim]
@@ -196,23 +208,25 @@ class ViT_trans(BaseLightningClass):
 
 if __name__ == "__main__":
     
-    img = torch.ones([4, 4, 3, 128, 128]).cuda()
+    img = torch.ones([4, 4, 3, 128, 128])
     print("Is x a list of tensors?", all(isinstance(item, torch.Tensor) for item in img))
     print("Length of x:", len(img))
-
+    
+    #패치 사이즈
+    p_s = 16
     model_kwargs = {
-        'embed_dim': 128,
-        'hidden_dim': 512,
+        'embed_dim': (p_s*p_s*3),
+        'hidden_dim': (p_s*p_s*3)*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
         'num_classes': 3,
-        'patch_size': 16,
-        'num_patches': 64,
+        'patch_size': p_s,
+        'num_patches': (128//p_s)**2,
         'dropout': 0.1,
         'head_num_layers': 2 
     }
-    model = ViT_trans(model_kwargs,lr=1e-3).cuda()
+    model = ViT_trans(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
