@@ -155,8 +155,8 @@ class VisionTransformer(nn.Module):
         x = self.embedding(x)
         B, T, _ = x.shape
         
-        cls_token = self.cls_token.repeat(B, 1, 1)
-        x = torch.cat([cls_token, x], dim=1)
+        #cls_token = self.cls_token.repeat(B, 1, 1)
+        #x = torch.cat([cls_token, x], dim=1)
         x = x + self.pos_embedding[:, : T + 1]
 
         # Apply Transforrmer
@@ -177,49 +177,6 @@ class VisionTransformer(nn.Module):
         cls_token = self.cls_token.repeat(B, 1, 1)
         x = torch.cat([cls_token, x], dim=1)
         x = x + self.pos_embedding[:, : T + 1]
-
-        # Apply Transforrmer
-        x = self.dropout(x)
-        x = x.transpose(0, 1)
-        x = self.transformer(x)
-
-        # Perform classification prediction
-        cls = x[0]
-        out = self.mlp_head(cls)
-        return out
-        
-class VisionDecoder(nn.Module):
-    def __init__(
-        self,
-        embed_dim,
-        hidden_dim,
-        num_channels,
-        num_heads,
-        num_layers,
-        num_classes,
-        patch_size,
-        num_patches,
-        dropout=0.0,
-        head_num_layers=2,
-    ):
-        super().__init__()
-
-        self.patch_size = patch_size
-        # Layers/Networks
-        self.transformer = nn.Sequential(
-            *(CrossAttentionBlock(embed_dim, hidden_dim, num_heads, dropout=dropout) for _ in range(num_layers))
-        )
-        self.mlp_head = nn.Sequential(nn.LayerNorm(embed_dim), nn.Linear(embed_dim, num_classes))
-        self.ffn = nn.Sequential(nn.LayerNorm(embed_dim), nn.Linear(embed_dim, embed_dim))
-        self.dropout = nn.Dropout(dropout)
-
-        # Parameters/Embeddings
-        self.cls_token = nn.Parameter(torch.randn(1, 1, embed_dim))
-        self.pos_embedding = nn.Parameter(torch.randn(1, 1 + num_patches, embed_dim))
-    
-    def forward(self, x):
-        # Preprocess input
-        B, T, _ = x.shape
 
         # Apply Transforrmer
         x = self.dropout(x)
@@ -294,14 +251,14 @@ class ViT_QA_cos(BaseLightningClass):
             *(CrossAttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
         )
         '''
-        self.ffn = nn.Sequential(       
-                                    nn.Linear(model_kwargs['embed_dim'], model_kwargs['hidden_dim']),
-                                    nn.GELU(),
-                                    nn.Dropout(model_kwargs['dropout']),
-                                    nn.Linear(model_kwargs['hidden_dim'], model_kwargs['embed_dim']),
-                                    nn.Dropout(model_kwargs['dropout']),   
+        self.ffn = nn.Sequential(
+            nn.LayerNorm(model_kwargs['embed_dim']),
+            nn.Linear(model_kwargs['embed_dim'], model_kwargs['hidden_dim']),
+            nn.GELU(),
+            nn.Dropout(model_kwargs['dropout']),
+            nn.Linear(model_kwargs['hidden_dim'], model_kwargs['embed_dim']),
+            nn.Dropout(model_kwargs['dropout']),   
         )
-        
         ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
                                       nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes'])
@@ -350,12 +307,20 @@ class ViT_QA2(BaseLightningClass):
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
         self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
         self.dropout = nn.Dropout(model_kwargs['dropout'])
-        '''
+        
         self.Crosstransformer = nn.Sequential(
             *(CrossAttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
         )
+    
         '''
-        self.decoder = VisionDecoder(**model_kwargs)
+        self.ffn = nn.Sequential(
+            nn.Linear(model_kwargs['embed_dim'], model_kwargs['hidden_dim']),
+            nn.GELU(),
+            nn.Dropout(model_kwargs['dropout']),
+            nn.Linear(model_kwargs['hidden_dim'], model_kwargs['embed_dim']),
+            nn.Dropout(model_kwargs['dropout']),   
+        )
+        '''
         ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
                                       nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes'])
@@ -366,16 +331,21 @@ class ViT_QA2(BaseLightningClass):
         B, _,_, _ ,_= x.shape
         x = x.permute(1, 0, 2, 3, 4)
         #print(x.shape)
-        embeddings_list = []
+        
         cls_list = []
-        for imgs in (x):
+        for i , imgs in enumerate(x):
             embeddings = self.encoder.get_value(imgs)  # shape (4, embedding_size)
             #print(embeddings.shape)
-            embeddings_list.append(embeddings)
+            if  i > 0:
+                embeddings = self.Crosstransformer([embeddings,Q_embedding])
+            else:
+                cls_token = self.cls_token.repeat(B, 1, 1) # [B, 1, embed_dim]
+                Q_embedding =  torch.cat([cls_token, embeddings], dim=1)
+                
+                
             cls_list.append(embeddings[0])
             #print("임베딩 모양",embeddings.shape)
-        embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
-        #print("임베딩 차원(append된것과 차이 없음): ",embeddings.shape)
+        
         
         cls = torch.stack(cls_list,0)
         #print("cls 차원(append된것과 차이 없음): ",cls.shape)
@@ -420,7 +390,7 @@ if __name__ == "__main__":
         'head_num_layers': 2 
     }
     #model = ViT_trans(model_kwargs,lr=1e-3)
-    model = ViT_QA_cos(model_kwargs,lr=1e-3)
+    model = ViT_QA2(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
