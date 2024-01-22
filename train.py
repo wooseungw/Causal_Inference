@@ -8,6 +8,7 @@ from PIL import ImageFile
 from pytorch_lightning.loggers import WandbLogger
 import torch
 from ViT import *
+from ViT_QA import *
 from pytorch_lightning.callbacks import ModelCheckpoint
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -70,7 +71,7 @@ def train():
     )
 
     #model = ViT_trans(model_kwargs, lr=1e-3)
-    model = ViT_QA(model_kwargs, lr=1e-3)
+    model = ViT_QA2(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
         max_epochs=5,

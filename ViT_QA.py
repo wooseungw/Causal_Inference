@@ -311,12 +311,12 @@ class ViT_QA2(BaseLightningClass):
             #print(embeddings.shape)
             embeddings_list.append(embeddings)
             cls_list.append(embeddings[0])
-            print("임베딩 모양",embeddings.shape)
+            #print("임베딩 모양",embeddings.shape)
         embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
-        print("임베딩 차원(append된것과 차이 없음): ",embeddings.shape)
+        #print("임베딩 차원(append된것과 차이 없음): ",embeddings.shape)
         
         cls = torch.stack(cls_list,0)
-        print("cls 차원(append된것과 차이 없음): ",cls.shape)
+        #print("cls 차원(append된것과 차이 없음): ",cls.shape)
         ##################원래 mlp##############
         #preds = self.mlp_head(embeddings) # bsz, num_classes
         ##################코사인 유사도##############
@@ -328,9 +328,9 @@ class ViT_QA2(BaseLightningClass):
         cos_similarities = F.cosine_similarity(query_seq, candidate_seqs, dim=2)
 
         _ , preds = torch.max(cos_similarities, dim=0)
-        print(preds)
+        #print(preds)
         
-        return preds
+        return preds.float()
     
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
