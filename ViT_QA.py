@@ -17,22 +17,6 @@ from torchvision import transforms, datasets
 import timm  # PyTorch Image Models 라이브러리
 import numpy as np
 
-def img_to_patch(x, patch_size, flatten_channels=True):
-    """
-    Inputs:
-        x - Tensor representing the image of shape [B, C, H, W]
-        patch_size - Number of pixels per dimension of the patches (integer)
-        flatten_channels - If True, the patches will be returned in a flattened format
-                           as a feature vector instead of a image grid.
-    """
-    B, C, H, W = x.shape
-    x = x.reshape(B, C, H // patch_size, patch_size, W // patch_size, patch_size)
-    x = x.permute(0, 2, 4, 1, 3, 5)  # [B, H', W', C, p_H, p_W]
-    x = x.flatten(1, 2)  # [B, H'*W', C, p_H, p_W]
-    if flatten_channels:
-        x = x.flatten(2, 4)  # [B, H'*W', C*p_H*p_W]
-    return x
-
 
 class AttentionBlock(nn.Module):
     def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
@@ -59,42 +43,11 @@ class AttentionBlock(nn.Module):
 
     def forward(self, x):
         inp_x = self.layer_norm_1(x)
+        #[0]번은 어텐션 벨류, [1]번은 어텐션 가중치
         x = x + self.attn(inp_x, inp_x, inp_x)[0]
-        #print("그냥 어텐션",x.shape)
         x = x + self.linear(self.layer_norm_2(x))
-        
         return x
     
-class AttentionBlock(nn.Module):
-    def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
-        """
-        Inputs:
-            embed_dim - Dimensionality of input and attention feature vectors
-            hidden_dim - Dimensionality of hidden layer in feed-forward network
-                         (usually 2-4x larger than embed_dim)
-            num_heads - Number of heads to use in the Multi-Head Attention block
-            dropout - Amount of dropout to apply in the feed-forward network
-        """
-        super().__init__()
-
-        self.layer_norm_1 = nn.LayerNorm(embed_dim)
-        self.attn = nn.MultiheadAttention(embed_dim, num_heads)
-        self.layer_norm_2 = nn.LayerNorm(embed_dim)
-        self.linear = nn.Sequential(
-            nn.Linear(embed_dim, hidden_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, embed_dim),
-            nn.Dropout(dropout),
-        )
-
-    def forward(self, x):
-        inp_x = self.layer_norm_1(x)
-        x = x + self.attn(inp_x, inp_x, inp_x)[0]
-        #print("그냥 어텐션",x.shape)
-        x = x + self.linear(self.layer_norm_2(x))
-        
-        return x
     
 class CrossAttentionBlock(nn.Module):
     def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
@@ -167,7 +120,6 @@ class VisionTransformer(nn.Module):
             Rearrange('b e (h) (w) -> b (h w) e')
         )
         # Layers/Networks
-        #self.input_layer = nn.Linear(num_channels * (patch_size**2), embed_dim)
         self.transformer = nn.Sequential(
             *(AttentionBlock(embed_dim, hidden_dim, num_heads, dropout=dropout) for _ in range(num_layers))
         )
@@ -180,25 +132,20 @@ class VisionTransformer(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, 1 + num_patches, embed_dim))
     def get_embedding(self, x):
         # Preprocess input
-        #x = img_to_patch(x, self.patch_size)
         x = self.embedding(x)
         B, T, _ = x.shape
-        #x = self.input_layer(x)
 
         # Add CLS token and positional encoding
         cls_token = self.cls_token.repeat(B, 1, 1)
         x = torch.cat([cls_token, x], dim=1)
-        # print('x.shape',x.shape)
-        # print('T', T)
-        # print('self.pos_embedding.shape',self.pos_embedding.shape)
-        # x = x + self.pos_embedding[:, : T + 1]
+
         x = x + self.pos_embedding[:, : T + 1]
 
         # Apply Transforrmer
         x = self.dropout(x)
         x = x.transpose(0, 1)
         x = self.transformer(x)
-        #print(x.shape)
+        
         # Perform classification prediction
         cls = x[0]
         #print("Vit의 cls 모양",cls.shape)
@@ -241,6 +188,48 @@ class VisionTransformer(nn.Module):
         out = self.mlp_head(cls)
         return out
         
+class VisionDecoder(nn.Module):
+    def __init__(
+        self,
+        embed_dim,
+        hidden_dim,
+        num_channels,
+        num_heads,
+        num_layers,
+        num_classes,
+        patch_size,
+        num_patches,
+        dropout=0.0,
+        head_num_layers=2,
+    ):
+        super().__init__()
+
+        self.patch_size = patch_size
+        # Layers/Networks
+        self.transformer = nn.Sequential(
+            *(CrossAttentionBlock(embed_dim, hidden_dim, num_heads, dropout=dropout) for _ in range(num_layers))
+        )
+        self.mlp_head = nn.Sequential(nn.LayerNorm(embed_dim), nn.Linear(embed_dim, num_classes))
+        self.ffn = nn.Sequential(nn.LayerNorm(embed_dim), nn.Linear(embed_dim, embed_dim))
+        self.dropout = nn.Dropout(dropout)
+
+        # Parameters/Embeddings
+        self.cls_token = nn.Parameter(torch.randn(1, 1, embed_dim))
+        self.pos_embedding = nn.Parameter(torch.randn(1, 1 + num_patches, embed_dim))
+    
+    def forward(self, x):
+        # Preprocess input
+        B, T, _ = x.shape
+
+        # Apply Transforrmer
+        x = self.dropout(x)
+        x = x.transpose(0, 1)
+        x = self.transformer(x)
+
+        # Perform classification prediction
+        cls = x[0]
+        out = self.mlp_head(cls)
+        return out
 
 class ViT_trans(BaseLightningClass):
     def __init__(self, model_kwargs, lr):
@@ -290,46 +279,56 @@ class ViT_trans(BaseLightningClass):
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
         return [optimizer], [lr_scheduler]
 
-
-class ViT_QA(BaseLightningClass):
+class ViT_QA2(BaseLightningClass):
     def __init__(self, model_kwargs, lr):
         super().__init__()
         self.save_hyperparameters()
-        self.model = VisionTransformer(**model_kwargs)
+        self.encoder = VisionTransformer(**model_kwargs)
         ##############################
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
         self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
         self.dropout = nn.Dropout(model_kwargs['dropout'])
+        '''
         self.Crosstransformer = nn.Sequential(
             *(CrossAttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
         )
+        '''
+        self.decoder = VisionDecoder(**model_kwargs)
         ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
-                                      #nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes'])
-                                      nn.Linear(model_kwargs['embed_dim'], 1),)
+                                      nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes'])
+                                      )
         self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
 
     def forward(self, x):
         B, _,_, _ ,_= x.shape
         x = x.permute(1, 0, 2, 3, 4)
         #print(x.shape)
-        qa_list = []
-        for i,imgs in enumerate(x):
-            embeddings = self.model.get_value(imgs)  # shape (4, embedding_size)
+        embeddings_list = []
+        cls_list = []
+        for imgs in (x):
+            embeddings = self.encoder.get_value(imgs)  # shape (4, embedding_size)
             #print(embeddings.shape)
-            if i > 0:
-                qa = self.Crosstransformer([x_embedding,embeddings])
-                qa_list.append(qa)
-            else:
-                x_embedding = embeddings
-            
-        embeddings = torch.stack(qa_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
-        #print("임베딩 차원",embeddings.shape)
+            embeddings_list.append(embeddings)
+            cls_list.append(embeddings[0])
+            print("임베딩 모양",embeddings.shape)
+        embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
+        print("임베딩 차원(append된것과 차이 없음): ",embeddings.shape)
         
-        
-        ################################
-        preds = self.mlp_head(embeddings) # bsz, num_classes
-        preds = preds.view(B, 3)
+        cls = torch.stack(cls_list,0)
+        print("cls 차원(append된것과 차이 없음): ",cls.shape)
+        ##################원래 mlp##############
+        #preds = self.mlp_head(embeddings) # bsz, num_classes
+        ##################코사인 유사도##############
+        # 0번째 시퀀스와 나머지 시퀀스 분리
+        query_seq = cls[0].unsqueeze(0) # (1, batch, embedding)
+        candidate_seqs = cls[1:]        # (3, batch, embedding)
+
+        # 코사인 유사도 계산
+        cos_similarities = F.cosine_similarity(query_seq, candidate_seqs, dim=2)
+
+        _ , preds = torch.max(cos_similarities, dim=0)
+        print(preds)
         
         return preds
     
@@ -337,10 +336,10 @@ class ViT_QA(BaseLightningClass):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
         return [optimizer], [lr_scheduler]
-
+    
 if __name__ == "__main__":
     
-    img = torch.ones([12, 4, 3, 128, 128])
+    img = torch.ones([16, 4, 3, 128, 128])
     print("Is x a list of tensors?", all(isinstance(item, torch.Tensor) for item in img))
     print("Length of x:", len(img))
     
@@ -359,7 +358,7 @@ if __name__ == "__main__":
         'head_num_layers': 2 
     }
     #model = ViT_trans(model_kwargs,lr=1e-3)
-    model = ViT_QA(model_kwargs,lr=1e-3)
+    model = ViT_QA2(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
