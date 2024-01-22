@@ -89,17 +89,12 @@ class CrossAttentionBlock(nn.Module):
         )
 
     def forward(self, x):
-        #y = x[1]
-        #x = x[0]
-        #inp_x = self.layer_norm_1(x)
-        #inp_y = self.layer_norm_1(y)
-        x, y = torch.chunk(x, chunks=2, dim=0)
-        print("Cross attention",x.shape, x.type)
-        print("Cross attention",y.shape, y.type)
+        y = x[1]
+        x = x[0]
         inp_x = self.layer_norm_1(x)
         inp_y = self.layer_norm_1(y)
-        x = x + self.attn(inp_y, inp_x, inp_x)
-
+        x = x + self.attn(inp_y, inp_x, inp_x)[0]
+        #print("Cross attention",x.shape)
         x = x + self.linear(self.layer_norm_2(x))
         
         return x
@@ -290,10 +285,7 @@ class ViT_QA(BaseLightningClass):
             embeddings = self.model.get_value(imgs)  # shape (4, embedding_size)
             #print(embeddings.shape)
             if i > 0:
-                #qa = self.Crosstransformer([x_embedding,embeddings])
-                concatenated_tensor = torch.cat([x_embedding, embeddings], dim=0)
-                qa = self.Crosstransformer(concatenated_tensor)
-
+                qa = self.Crosstransformer([x_embedding,embeddings])
                 qa_list.append(qa)
             else:
                 x_embedding = embeddings
