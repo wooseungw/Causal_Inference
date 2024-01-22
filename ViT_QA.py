@@ -294,6 +294,14 @@ class ViT_QA_cos(BaseLightningClass):
             *(CrossAttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
         )
         '''
+        self.ffn = nn.Sequential(       
+                                    nn.Linear(model_kwargs['embed_dim'], model_kwargs['hidden_dim']),
+                                    nn.GELU(),
+                                    nn.Dropout(model_kwargs['dropout']),
+                                    nn.Linear(model_kwargs['hidden_dim'], model_kwargs['embed_dim']),
+                                    nn.Dropout(model_kwargs['dropout']),   
+        )
+        
         ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
                                       nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes'])
@@ -308,6 +316,7 @@ class ViT_QA_cos(BaseLightningClass):
         for imgs in (x):
             embeddings = self.encoder.get_embedding(imgs)  # shape (4, embedding_size)
             #print(embeddings.shape)
+            embeddings = self.ffn(embeddings)
             cls_list.append(embeddings)
             #print("임베딩 모양",embeddings.shape)
         cls = torch.stack(cls_list,0)

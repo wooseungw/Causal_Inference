@@ -56,14 +56,14 @@ def train():
     print(len(val_dataset))
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=128,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=128,num_workers=6,pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=64,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=64,num_workers=6,pin_memory=True, persistent_workers=True)
 
     #torch.set_float32_matmul_precision('high')
     
     # 체크포인트 콜백 설정
     checkpoint_callback = ModelCheckpoint(
-        dirpath="model_checkpoint/vit",
+        dirpath="model_checkpoint/vit_cos",
         filename="ViT_{epoch}-{val_loss:.2f}",
         save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
         monitor="val_loss",  # 모니터링할 메트릭
@@ -77,7 +77,7 @@ def train():
         max_epochs=5,
         accelerator='auto',
         devices=1,
-        log_every_n_steps=20,
+        log_every_n_steps=40,
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
     )
