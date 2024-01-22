@@ -279,6 +279,59 @@ class ViT_trans(BaseLightningClass):
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
         return [optimizer], [lr_scheduler]
 
+
+class ViT_QA_cos(BaseLightningClass):
+    def __init__(self, model_kwargs, lr):
+        super().__init__()
+        self.save_hyperparameters()
+        self.encoder = VisionTransformer(**model_kwargs)
+        ##############################
+        self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
+        self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
+        self.dropout = nn.Dropout(model_kwargs['dropout'])
+        '''
+        self.Crosstransformer = nn.Sequential(
+            *(CrossAttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
+        )
+        '''
+        ##############################
+        self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
+                                      nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes'])
+                                      )
+        self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
+
+    def forward(self, x):
+        B, _,_, _ ,_= x.shape
+        x = x.permute(1, 0, 2, 3, 4)
+        #print(x.shape)
+        cls_list = []
+        for imgs in (x):
+            embeddings = self.encoder.get_embedding(imgs)  # shape (4, embedding_size)
+            #print(embeddings.shape)
+            cls_list.append(embeddings)
+            #print("임베딩 모양",embeddings.shape)
+        cls = torch.stack(cls_list,0)
+        #print("cls 차원(append된것과 차이 없음): ",cls.shape)
+        ##################원래 mlp##############
+        #preds = self.mlp_head(embeddings) # bsz, num_classes
+        ##################코사인 유사도##############
+        # 0번째 시퀀스와 나머지 시퀀스 분리
+        query_seq = cls[0].unsqueeze(0) # (1, batch, embedding)
+        candidate_seqs = cls[1:]        # (3, batch, embedding)
+
+        # 코사인 유사도 계산
+        cos_similarities = F.cosine_similarity(query_seq, candidate_seqs, dim=2)
+
+        cos_similarities = cos_similarities.transpose(1,0)
+        #print(preds)
+        
+        return cos_similarities
+    
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
+        return [optimizer], [lr_scheduler]
+
 class ViT_QA2(BaseLightningClass):
     def __init__(self, model_kwargs, lr):
         super().__init__()
@@ -327,10 +380,10 @@ class ViT_QA2(BaseLightningClass):
         # 코사인 유사도 계산
         cos_similarities = F.cosine_similarity(query_seq, candidate_seqs, dim=2)
 
-        _ , preds = torch.max(cos_similarities, dim=0)
+        cos_similarities = cos_similarities.transpose(1,0)
         #print(preds)
         
-        return preds.float()
+        return cos_similarities
     
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
@@ -358,7 +411,7 @@ if __name__ == "__main__":
         'head_num_layers': 2 
     }
     #model = ViT_trans(model_kwargs,lr=1e-3)
-    model = ViT_QA2(model_kwargs,lr=1e-3)
+    model = ViT_QA_cos(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)

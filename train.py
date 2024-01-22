@@ -71,7 +71,7 @@ def train():
     )
 
     #model = ViT_trans(model_kwargs, lr=1e-3)
-    model = ViT_QA2(model_kwargs, lr=1e-3)
+    model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
         max_epochs=5,
