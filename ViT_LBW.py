@@ -33,6 +33,16 @@ def img_to_patch(x, patch_size, flatten_channels=True):
         x = x.flatten(2, 4)  # [B, H'*W', C*p_H*p_W]
     return x
 
+# 임베딩의 코사인 유사도 계산
+def cosine_similarity(embedding1, embedding2):
+    # 두 embedding의 0번 인덱스 값 추출
+    emb1_0 = embedding1[0]
+    emb2_0 = embedding2[0]
+
+    # 코사인 유사도 계산
+    similarity = F.cosine_similarity(emb1_0, emb2_0)
+    print('유사도', similarity.shape)
+    return similarity
 
 class AttentionBlock(nn.Module):
     def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
@@ -168,9 +178,10 @@ class VisionTransformer(nn.Module):
         x = self.transformer(x)
         #print(x.shape)
         # Perform classification prediction
-        cls = x[0]
+        #cls = x[0]
         #print("Vit의 cls 모양",cls.shape)
-        return cls
+        #return cls
+        return x
 
     def get_value(self,x):
         x = self.embedding(x)
@@ -267,36 +278,50 @@ class ViT_QA(BaseLightningClass):
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
         self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
         self.dropout = nn.Dropout(model_kwargs['dropout'])
+        self.transformer = nn.Sequential(
+            *(AttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
+        )
         self.Crosstransformer = nn.Sequential(
             *(CrossAttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
         )
         ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
-                                      #nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes'])
-                                      nn.Linear(model_kwargs['embed_dim'], 1),)
+                                      nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes']))
+                                      #nn.Linear(model_kwargs['embed_dim'], 1),)
         self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
 
     def forward(self, x):
         B, _,_, _ ,_= x.shape
         x = x.permute(1, 0, 2, 3, 4)
         #print(x.shape)
-        qa_list = []
-        for i,imgs in enumerate(x):
-            embeddings = self.model.get_value(imgs)  # shape (4, embedding_size)
-            #print(embeddings.shape)
-            if i > 0:
-                qa = self.Crosstransformer([x_embedding,embeddings])
-                qa_list.append(qa)
-            else:
-                x_embedding = embeddings
-            
-        embeddings = torch.stack(qa_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
+        embeddings_list = []
+        for imgs in x:
+            embeddings = self.model.get_embedding(imgs)  # shape (4, embedding_size)
+            embeddings_list.append(embeddings)
+        #print("get_embeding의 임베딩 모양",embeddings.shape)
+        embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
+        #print('embeddings shape', embeddings.shape)
+        # 0번 index의 embedding
+        reference_embedding = embeddings[0]
+        most_similar_index = -1
+        max_similarity = float('-inf')
+        for i, other_embedding in enumerate(embeddings[1:]):
+            similarity = cosine_similarity(reference_embedding, other_embedding)
+    
+            # 가장 유사도가 높은 embedding의 인덱스 업데이트
+            if similarity.item() > max_similarity.item():
+                max_similarity = similarity
+                most_similar_index = i + 1  # 1을 더해야 실제 embeddings에서의 인덱스
+
+        selected_embeddings = [reference_embedding, embeddings[most_similar_index]]
+        qa = self.Crosstransformer(selected_embeddings)
+        cls = qa[0]
+        ################################
+        preds = self.mlp_head(cls) # bsz, num_classes
         #print("임베딩 차원",embeddings.shape)
         
         
         ################################
-        preds = self.mlp_head(embeddings) # bsz, num_classes
-        preds = preds.view(B, 3)
         
         return preds
     
