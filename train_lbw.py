@@ -56,8 +56,14 @@ def train():
     print(len(val_dataset))
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=128,shuffle=True,num_workers=4,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=128,num_workers=4,pin_memory=True, persistent_workers=True)
+    ## 연구실
+    batch_size = 128
+    num_workers = 8
+    ## 집
+    # batch_size = 64
+    # num_workers = 4
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True,num_workers=num_workers,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=batch_size,num_workers=num_workers,pin_memory=True, persistent_workers=True)
 
     #torch.set_float32_matmul_precision('high')
     
