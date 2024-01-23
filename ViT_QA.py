@@ -329,8 +329,8 @@ if __name__ == "__main__":
     #패치 사이즈
     p_s = 16
     model_kwargs = {
-        'embed_dim': (p_s*p_s*3),
-        'hidden_dim': (p_s*p_s*3)*4,
+        'embed_dim': (256),
+        'hidden_dim': (256)*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
