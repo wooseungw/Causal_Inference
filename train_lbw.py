@@ -56,8 +56,8 @@ def train():
     print(len(val_dataset))
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=64,shuffle=True,num_workers=4,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=64,num_workers=4,pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=128,shuffle=True,num_workers=4,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=128,num_workers=4,pin_memory=True, persistent_workers=True)
 
     #torch.set_float32_matmul_precision('high')
     
@@ -87,3 +87,6 @@ if __name__ == '__main__':
     # Windows 환경에서 멀티프로세싱을 사용할 때 필요
     torch.multiprocessing.freeze_support()
     train()
+
+## 연구실 train 시 아래 코드 사용 ##
+# python -Xfrozen_modules=off -m train_lbw
