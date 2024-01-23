@@ -152,9 +152,9 @@ class VisionTransformer(nn.Module):
         return cls
 
     def get_value(self,x):
+        
         x = self.embedding(x)
         B, T, _ = x.shape
-        
         #cls_token = self.cls_token.repeat(B, 1, 1)
         #x = torch.cat([cls_token, x], dim=1)
         x = x + self.pos_embedding[:, : T + 1]

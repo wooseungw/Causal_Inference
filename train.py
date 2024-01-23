@@ -7,7 +7,7 @@ from torchvision import transforms
 from PIL import ImageFile
 from pytorch_lightning.loggers import WandbLogger
 import torch
-from ViT import *
+from ViT import ViT_trans
 from ViT_QA import *
 from pytorch_lightning.callbacks import ModelCheckpoint
 ImageFile.LOAD_TRUNCATED_IMAGES = True
