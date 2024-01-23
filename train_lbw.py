@@ -48,8 +48,9 @@ def train():
             transforms.Normalize([0.7760, 0.7491, 0.7213], [0.2949, 0.3032, 0.3314]),
         ]
     )
-
+    
     dir = os.path.join(os.getcwd(),"Dataset/Train/Image")
+
     train_dataset = QADataset(transform = train_transform, loc = dir)
     print(len(train_dataset))
     val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
