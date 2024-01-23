@@ -347,8 +347,8 @@ if __name__ == "__main__":
     #패치 사이즈
     p_s = 16
     model_kwargs = {
-        'embed_dim': (p_s*p_s*3),
-        'hidden_dim': (p_s*p_s*3)*4,
+        'embed_dim': (256),
+        'hidden_dim': (256)*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
@@ -358,8 +358,8 @@ if __name__ == "__main__":
         'dropout': 0.1,
         'head_num_layers': 2 
     }
-    #model = ViT_trans(model_kwargs,lr=1e-3)
-    model = ViT_QA(model_kwargs,lr=1e-3)
+    model = ViT_trans(model_kwargs,lr=1e-3)
+    #model = ViT_QA(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
