@@ -9,6 +9,7 @@ from pytorch_lightning.loggers import WandbLogger
 import torch
 from ViT import *
 from ViT_QA import *
+from ViT_LBW import *
 from pytorch_lightning.callbacks import ModelCheckpoint
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -76,8 +77,8 @@ def train():
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
 
-    #model = ViT_trans(model_kwargs, lr=1e-3)
-    model = ViT_QA_cos(model_kwargs, lr=1e-3)
+    model = ViT_cls_cross(model_kwargs, lr=1e-3)
+    #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
         max_epochs=5,

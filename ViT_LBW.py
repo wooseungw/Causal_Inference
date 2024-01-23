@@ -73,14 +73,24 @@ class CrossAttentionBlock(nn.Module):
         )
 
     def forward(self, x):
-        y = x[1]
-        x = x[0]
+        # y = x[1]
+        # x = x[0]
+        ##
+        t, b, e =  x.shape
+        y = x[0].view(1, b, e)
+        x = x[1:]
+        #print(y.shape, x.shape)
+        ##
         inp_x = self.layer_norm_1(x)
         inp_y = self.layer_norm_1(y)
-        x = x + self.attn(inp_y, inp_x, inp_x)[0]
+        y = y + self.attn(inp_y, inp_x, inp_x)[0]
         #print("Cross attention",x.shape)
-        x = x + self.linear(self.layer_norm_2(x))
-        
+        y = y + self.linear(self.layer_norm_2(y))
+        ##
+        #print(y.shape, x.shape)
+        x = torch.cat((y,x), dim=0)
+        #print(x.shape)
+        ##
         return x
     
 class VisionTransformer(nn.Module):
@@ -368,7 +378,52 @@ class ViT_QA2(BaseLightningClass):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
         return [optimizer], [lr_scheduler]
+
+class ViT_cls_cross(BaseLightningClass):
+    def __init__(self, model_kwargs, lr):
+        super().__init__()
+        self.save_hyperparameters()
+        self.model = VisionTransformer(**model_kwargs)
+        ##############################
+        self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
+        self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
+        self.dropout = nn.Dropout(model_kwargs['dropout'])
+        self.transformer = nn.Sequential(
+            *(AttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
+        )
+        self.Crosstransformer = nn.Sequential(
+            *(CrossAttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
+        )
+        ##############################
+        self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
+                                      nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes']))
+        self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
+
+    def forward(self, x):
+        if isinstance(x, list) and all(isinstance(item, torch.Tensor) for item in x):
+            x = torch.stack(x).permute(1, 0, 2, 3, 4)
+            
+        embeddings_list = []
+        for imgs in x:
+            embeddings = self.model.get_embedding(imgs)  # shape (4, embedding_size)
+            embeddings_list.append(embeddings)
+        #print("get_embeding의 임베딩 모양",embeddings.shape)
+        embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
+        #print("stack을 쌓은 뒤 임베딩 모양",embeddings.shape)
+        ###############################
+        embeddings = embeddings.permute(1,0,2)
+        ca_out = self.Crosstransformer(embeddings)
+        
+        ################################
+        preds = self.mlp_head(ca_out[0]) # bsz, num_classes
+        return preds
     
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
+        return [optimizer], [lr_scheduler]
+
+
 if __name__ == "__main__":
     
     img = torch.ones([16, 4, 3, 128, 128])
@@ -389,8 +444,8 @@ if __name__ == "__main__":
         'dropout': 0.1,
         'head_num_layers': 2 
     }
-    #model = ViT_trans(model_kwargs,lr=1e-3)
-    model = ViT_QA_cos(model_kwargs,lr=1e-3)
+    model = ViT_cls_cross(model_kwargs,lr=1e-3)
+    #model = ViT_QA_cos(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
