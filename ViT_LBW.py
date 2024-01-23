@@ -299,7 +299,7 @@ class ViT_QA_cos(BaseLightningClass):
         cos_similarities = F.cosine_similarity(query_seq, candidate_seqs, dim=2)
 
         cos_similarities = cos_similarities.transpose(1,0)
-        print(cos_similarities)
+        #print(cos_similarities)
         
         return cos_similarities
     
