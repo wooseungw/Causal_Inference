@@ -59,7 +59,7 @@ def train():
     # DataLoader 설정
     ## 연구실
     batch_size = 128
-    num_workers = 8
+    num_workers = 6
     ## 집
     # batch_size = 64
     # num_workers = 4
