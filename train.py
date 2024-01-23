@@ -79,7 +79,7 @@ def train():
         max_epochs=20,
         accelerator='auto',
         devices=1,
-        log_every_n_steps=10,
+        log_every_n_steps=10*(256//batch_size),
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
     )
