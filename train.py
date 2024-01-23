@@ -17,8 +17,8 @@ def train():
     #패치 사이즈
     p_s = 16
     model_kwargs = {
-        'embed_dim': (p_s*p_s*3),
-        'hidden_dim': (p_s*p_s*3)*4,
+        'embed_dim': 256,
+        'hidden_dim': 256*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
@@ -63,7 +63,7 @@ def train():
     
     # 체크포인트 콜백 설정
     checkpoint_callback = ModelCheckpoint(
-        dirpath="model_checkpoint/vit",
+        dirpath="model_checkpoint/vit_trans",
         filename="ViT_{epoch}-{val_loss:.2f}",
         save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
         monitor="val_loss",  # 모니터링할 메트릭
