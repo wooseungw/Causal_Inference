@@ -51,3 +51,20 @@ class BaseLightningClass(pl.LightningModule):
         
 
         return {"preds": pred_class, "gts": labels, "categories": categories}
+    def training_epoch_end(self, outputs):
+        # 훈련 에포크가 끝날 때 수행할 작업
+        # 예: 평균 손실 계산
+        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        self.log('train_epoch_loss', avg_loss)
+
+    def validation_epoch_end(self, outputs):
+        # 검증 에포크가 끝날 때 수행할 작업
+        # 예: 평균 정확도 계산
+        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
+        self.log('val_epoch_acc', avg_acc)
+
+    def test_epoch_end(self, outputs):
+        # 테스트 에포크가 끝날 때 수행할 작업
+        # 예: 평균 F1 점수 계산
+        avg_f1 = torch.stack([x['test_f1'] for x in outputs]).mean()
+        self.log('test_epoch_f1', avg_f1)

@@ -16,6 +16,7 @@ def train():
     # 모델 인스턴스 생성
     #패치 사이즈
     p_s = 16
+    batch_size = 256
     model_kwargs = {
         'embed_dim': 256,
         'hidden_dim': 256*4,
@@ -56,8 +57,8 @@ def train():
     print(len(val_dataset))
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=128,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=128,num_workers=6,pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=batch_size,num_workers=6,pin_memory=True, persistent_workers=True)
 
     #torch.set_float32_matmul_precision('high')
     
@@ -69,15 +70,16 @@ def train():
         monitor="val_loss",  # 모니터링할 메트릭
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
-
-    #model = ViT_trans(model_kwargs, lr=1e-3)
-    model = ViT_QA_cos(model_kwargs, lr=1e-3)
+    logger_step = len(train_dataset) // batch_size
+    model = ViT_trans(model_kwargs, lr=1e-3)
+    #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
-        max_epochs=5,
+        enable_checkpointing=True,
+        max_epochs=20,
         accelerator='auto',
         devices=1,
-        log_every_n_steps=20,
+        log_every_n_steps=10,
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
     )
