@@ -72,12 +72,12 @@ class CrossAttentionBlock(nn.Module):
             nn.Dropout(dropout),
         )
 
-    def forward(self, x):
-        y = x[1]
-        x = x[0]
+    def forward(self, q, k):
+        x = q
+        y = k
         inp_x = self.layer_norm_1(x)
         inp_y = self.layer_norm_1(y)
-        x = x + self.attn(inp_y, inp_x, inp_x)[0]
+        x = x + self.attn(inp_x, inp_y, inp_y)[0]
         #print("Cross attention",x.shape)
         x = x + self.linear(self.layer_norm_2(x))
         
@@ -133,6 +133,7 @@ class VisionTransformer(nn.Module):
     def get_embedding(self, x):
         # Preprocess input
         x = self.embedding(x)
+        
         B, T, _ = x.shape
 
         # Add CLS token and positional encoding
@@ -154,10 +155,11 @@ class VisionTransformer(nn.Module):
     def get_value(self,x):
         
         x = self.embedding(x)
+        
         B, T, _ = x.shape
         #cls_token = self.cls_token.repeat(B, 1, 1)
         #x = torch.cat([cls_token, x], dim=1)
-        x = x + self.pos_embedding[:, : T + 1]
+        x = x + self.pos_embedding[:, : T]
 
         # Apply Transforrmer
         x = self.dropout(x)
@@ -285,14 +287,15 @@ class ViT_QA2(BaseLightningClass):
         
         cls_list = []
         for i , imgs in enumerate(x):
-            embeddings = self.encoder.get_value(imgs)  # shape (4, embedding_size)
+            embeddings = self.encoder.get_value(imgs)  # shape (64, 16, 256)
+            
             #print(embeddings.shape)
             if  i > 0:
-                embeddings = self.Crosstransformer([embeddings,Q_embedding])
+                for block in self.Crosstransformer:
+                    embeddings = block( Q_embedding,embeddings)
             else:
-                cls_token = self.cls_token.repeat(B, 1, 1) # [B, 1, embed_dim]
-                Q_embedding =  torch.cat([cls_token, embeddings], dim=1)
-                
+                cls_token = self.cls_token.repeat(1, B, 1) # [1, B, embed_dim]
+                Q_embedding =  torch.cat([cls_token, embeddings], dim=0) # shape (65, 16, 256)
                 
             cls_list.append(embeddings[0])
             #print("임베딩 모양",embeddings.shape)
@@ -301,19 +304,17 @@ class ViT_QA2(BaseLightningClass):
         cls = torch.stack(cls_list,0)
         #print("cls 차원(append된것과 차이 없음): ",cls.shape)
         ##################원래 mlp##############
-        #preds = self.mlp_head(embeddings) # bsz, num_classes
+        preds = self.mlp_head(cls) # bsz, num_classes
         ##################코사인 유사도##############
         # 0번째 시퀀스와 나머지 시퀀스 분리
-        query_seq = cls[0].unsqueeze(0) # (1, batch, embedding)
-        candidate_seqs = cls[1:]        # (3, batch, embedding)
-
+        #query_seq = cls[0].unsqueeze(0) # (1, batch, embedding)
+        #candidate_seqs = cls[1:]        # (3, batch, embedding)
         # 코사인 유사도 계산
-        cos_similarities = F.cosine_similarity(query_seq, candidate_seqs, dim=2)
-
-        cos_similarities = cos_similarities.transpose(1,0)
-        #print(preds)
+        #cos_similarities = F.cosine_similarity(query_seq, candidate_seqs, dim=2)
+        #cos_similarities = cos_similarities.transpose(1,0)
         
-        return cos_similarities
+        
+        return preds
     
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
