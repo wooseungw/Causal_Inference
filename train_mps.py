@@ -16,9 +16,21 @@ def train():
     # 모델 인스턴스 생성
     #패치 사이즈
     p_s = 16
+    batch_size = 128
+    '''
+    64 -> 40 = 10*(256//batch_size)
+    128 -> 20 
+    256 -> 10
+    '''
+    dir = os.path.join(os.getcwd(),"Dataset/Train/Image")
+    train_dataset = QADataset(transform = train_transform, loc = dir)
+    print(len(train_dataset))
+    val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
+    print(len(val_dataset))
+    log_step = 10*(256//batch_size)
     model_kwargs = {
-        'embed_dim': (p_s*p_s*3),
-        'hidden_dim': (p_s*p_s*3)*4,
+        'embed_dim': 128,
+        'hidden_dim': 128*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
@@ -49,35 +61,32 @@ def train():
         ]
     )
 
-    dir = os.path.join(os.getcwd(),"Dataset/Train/Image")
-    train_dataset = QADataset(transform = train_transform, loc = dir)
-    print(len(train_dataset))
-    val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
-    print(len(val_dataset))
+    
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=64,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=64,num_workers=6,pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=batch_size,num_workers=6,pin_memory=True, persistent_workers=True)
 
     #torch.set_float32_matmul_precision('high')
     
     # 체크포인트 콜백 설정
     checkpoint_callback = ModelCheckpoint(
-        dirpath="model_checkpoint/vit_cos",
+        dirpath=f"model_checkpoint/vit_trans_{batch_size}",
         filename="ViT_{epoch}-{val_loss:.2f}",
         save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
         monitor="val_loss",  # 모니터링할 메트릭
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
-
-    #model = ViT_trans(model_kwargs, lr=1e-3)
-    model = ViT_QA_cos(model_kwargs, lr=1e-3)
+    
+    model = ViT_trans(model_kwargs, lr=1e-3)
+    #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
-        max_epochs=5,
+        enable_checkpointing=True,
+        max_epochs=20,
         accelerator='auto',
         devices=1,
-        log_every_n_steps=40,
+        log_every_n_steps=log_step,
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
     )

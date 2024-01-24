@@ -7,7 +7,7 @@ from torchvision import transforms
 from PIL import ImageFile
 from pytorch_lightning.loggers import WandbLogger
 import torch
-from ViT import *
+from ViT import ViT_trans
 from ViT_QA import *
 from pytorch_lightning.callbacks import ModelCheckpoint
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -16,6 +16,7 @@ def train():
     # 모델 인스턴스 생성
     #패치 사이즈
     p_s = 16
+    batch_size = 256
     model_kwargs = {
         'embed_dim': 256,
         'hidden_dim': 256*4,
@@ -56,28 +57,29 @@ def train():
     print(len(val_dataset))
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=128,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=128,num_workers=6,pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=batch_size,num_workers=6,pin_memory=True, persistent_workers=True)
 
     #torch.set_float32_matmul_precision('high')
     
     # 체크포인트 콜백 설정
     checkpoint_callback = ModelCheckpoint(
-        dirpath="model_checkpoint/vit_trans",
+        dirpath="model_checkpoint/vit_QA2",
         filename="ViT_{epoch}-{val_loss:.2f}",
         save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
         monitor="val_loss",  # 모니터링할 메트릭
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
-
-    #model = ViT_trans(model_kwargs, lr=1e-3)
-    model = ViT_QA_cos(model_kwargs, lr=1e-3)
+    logger_step = len(train_dataset) // batch_size
+    model = ViT_trans(model_kwargs, lr=1e-3)
+    #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
-        max_epochs=5,
+        enable_checkpointing=True,
+        max_epochs=20,
         accelerator='auto',
         devices=1,
-        log_every_n_steps=20,
+        log_every_n_steps=10*(256//batch_size),
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
     )
