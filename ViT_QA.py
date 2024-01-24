@@ -274,9 +274,9 @@ class ViT_QA2(BaseLightningClass):
             nn.Dropout(model_kwargs['dropout']),   
         )
         '''
-        ##############################
-        self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
-                                      nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes'])
+        ##############################\
+        self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']*3),
+                                      nn.Linear(model_kwargs['embed_dim']*3, model_kwargs['num_classes'])
                                       )
         self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
 
@@ -292,16 +292,19 @@ class ViT_QA2(BaseLightningClass):
             #print(embeddings.shape)
             if  i > 0:
                 for block in self.Crosstransformer:
-                    embeddings = block( Q_embedding,embeddings)
+                    embeddings = block(Q_embedding,embeddings)
+                cls_list.append(embeddings[0])
             else:
                 cls_token = self.cls_token.repeat(1, B, 1) # [1, B, embed_dim]
                 Q_embedding =  torch.cat([cls_token, embeddings], dim=0) # shape (65, 16, 256)
                 
-            cls_list.append(embeddings[0])
+            
+            
             #print("임베딩 모양",embeddings.shape)
         
         
         cls = torch.stack(cls_list,0)
+        cls = cls.permute(1, 0, 2).contiguous().view(16, -1)  # 최종 모양: (16, 256*3)
         #print("cls 차원(append된것과 차이 없음): ",cls.shape)
         ##################원래 mlp##############
         preds = self.mlp_head(cls) # bsz, num_classes

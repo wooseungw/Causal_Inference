@@ -64,7 +64,7 @@ def train():
     
     # 체크포인트 콜백 설정
     checkpoint_callback = ModelCheckpoint(
-        dirpath="model_checkpoint/vit_trans",
+        dirpath="model_checkpoint/vit_QA2",
         filename="ViT_{epoch}-{val_loss:.2f}",
         save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
         monitor="val_loss",  # 모니터링할 메트릭
