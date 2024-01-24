@@ -18,9 +18,9 @@ class BaseLightningClass(pl.LightningModule):
         pred_class = preds.argmax(dim=-1)
         acc = (pred_class == labels).float().mean()
 
-        self.log("%s_loss" % mode, loss, on_step=True, on_epoch=True)
-        self.log("%s_acc" % mode, acc, on_step=True, on_epoch=True)
-        self.log("%s_f1" % mode, f1, on_step=True, on_epoch=True)
+        self.log("%s_loss" % mode, loss)
+        self.log("%s_acc" % mode, acc)
+        self.log("%s_f1" % mode, f1)
         return loss, {"preds": pred_class, "gts": labels, "categories": categories}
 
     def training_step(self, batch, batch_idx):

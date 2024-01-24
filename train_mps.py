@@ -29,8 +29,8 @@ def train():
     print(len(val_dataset))
     log_step = 10*(256//batch_size)
     model_kwargs = {
-        'embed_dim': 256,
-        'hidden_dim': 256*4,
+        'embed_dim': 128,
+        'hidden_dim': 128*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
@@ -77,7 +77,7 @@ def train():
         monitor="val_loss",  # 모니터링할 메트릭
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
-    logger_step = len(train_dataset) // batch_size
+    
     model = ViT_trans(model_kwargs, lr=1e-3)
     #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
