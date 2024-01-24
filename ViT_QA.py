@@ -152,9 +152,9 @@ class VisionTransformer(nn.Module):
         return cls
 
     def get_value(self,x):
+        
         x = self.embedding(x)
         B, T, _ = x.shape
-        
         #cls_token = self.cls_token.repeat(B, 1, 1)
         #x = torch.cat([cls_token, x], dim=1)
         x = x + self.pos_embedding[:, : T + 1]
@@ -329,8 +329,8 @@ if __name__ == "__main__":
     #패치 사이즈
     p_s = 16
     model_kwargs = {
-        'embed_dim': (p_s*p_s*3),
-        'hidden_dim': (p_s*p_s*3)*4,
+        'embed_dim': (256),
+        'hidden_dim': (256)*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,

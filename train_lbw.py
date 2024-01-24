@@ -49,8 +49,9 @@ def train():
             transforms.Normalize([0.7760, 0.7491, 0.7213], [0.2949, 0.3032, 0.3314]),
         ]
     )
-
+    
     dir = os.path.join(os.getcwd(),"Dataset/Train/Image")
+
     train_dataset = QADataset(transform = train_transform, loc = dir)
     print(len(train_dataset))
     val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
@@ -59,7 +60,7 @@ def train():
     # DataLoader 설정
     ## 연구실
     batch_size = 128
-    num_workers = 6
+    num_workers = 8
     ## 집
     # batch_size = 64
     # num_workers = 4
@@ -81,7 +82,7 @@ def train():
     #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
-        max_epochs=5,
+        max_epochs=20,
         accelerator='auto',
         devices=1,
         log_every_n_steps=20,
