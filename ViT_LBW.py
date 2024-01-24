@@ -17,6 +17,21 @@ from torchvision import transforms, datasets
 import timm  # PyTorch Image Models 라이브러리
 import numpy as np
 
+def img_to_patch(x, patch_size, flatten_channels=True):
+    """
+    Inputs:
+        x - Tensor representing the image of shape [B, C, H, W]
+        patch_size - Number of pixels per dimension of the patches (integer)
+        flatten_channels - If True, the patches will be returned in a flattened format
+                           as a feature vector instead of a image grid.
+    """
+    B, C, H, W = x.shape
+    x = x.reshape(B, C, H // patch_size, patch_size, W // patch_size, patch_size)
+    x = x.permute(0, 2, 4, 1, 3, 5)  # [B, H', W', C, p_H, p_W]
+    x = x.flatten(1, 2)  # [B, H'*W', C, p_H, p_W]
+    if flatten_channels:
+        x = x.flatten(2, 4)  # [B, H'*W', C*p_H*p_W]
+    return x
 
 class AttentionBlock(nn.Module):
     def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
@@ -129,6 +144,10 @@ class VisionTransformer(nn.Module):
             nn.Conv2d(3,embed_dim,kernel_size=patch_size,stride=patch_size),
             Rearrange('b e (h) (w) -> b (h w) e')
         )
+        # Base_line_embedding
+        self.input_layer = nn.Linear(num_channels * (patch_size**2), embed_dim)
+        #
+
         # Layers/Networks
         self.transformer = nn.Sequential(
             *(AttentionBlock(embed_dim, hidden_dim, num_heads, dropout=dropout) for _ in range(num_layers))
@@ -144,6 +163,13 @@ class VisionTransformer(nn.Module):
         # Preprocess input
         x = self.embedding(x)
         B, T, _ = x.shape
+        #
+
+        # # Base_line_embedding
+        # x = img_to_patch(x, self.patch_size)
+        # B, T, _ = x.shape
+        # x = self.input_layer(x)
+        # #
 
         # Add CLS token and positional encoding
         cls_token = self.cls_token.repeat(B, 1, 1)

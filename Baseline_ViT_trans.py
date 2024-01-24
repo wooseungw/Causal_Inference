@@ -122,7 +122,7 @@ class VisionTransformer(nn.Module):
 
         # Perform classification prediction
         cls = x[0]
-        print("Vit의 cls 모양",cls.shape)
+        #print("Vit의 cls 모양",cls.shape)
         return cls
 
 
@@ -259,7 +259,7 @@ class BaseLightningClass(pl.LightningModule):
         self.log(f"{mode}_f1_macro", sum(all_accuracy) / len(all_accuracy), on_step=False, on_epoch=True, rank_zero_only=True)
 
 
-class ViT_trans(BaseLightningClass):
+class ViT_trans_Base(BaseLightningClass):
     def __init__(self, model_kwargs, lr):
         super().__init__()
         self.save_hyperparameters()
@@ -275,7 +275,10 @@ class ViT_trans(BaseLightningClass):
         self.f1_cal = F1Score(num_classes=3, task='multiclass')  # F1 score 계산에 대한 초기화
 
     def forward(self, x):
+        ##
+        #if isinstance(x, list) and all(isinstance(item, torch.Tensor) for item in x): ## 이거 추가 함
         x = torch.stack(x).permute(1, 0, 2, 3, 4)
+        ##
         embeddings_list = []
         for imgs in x:
             embeddings = self.model.get_embedding(imgs)

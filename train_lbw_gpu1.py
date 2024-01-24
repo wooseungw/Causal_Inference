@@ -81,14 +81,14 @@ def train():
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
 
-    #model = ViT_cls_cross(model_kwargs, lr=1e-3)
-    model = ViT_trans(model_kwargs, lr=1e-3)
+    model = ViT_cls_cross(model_kwargs, lr=1e-3)
+    #model = ViT_trans(model_kwargs, lr=1e-3)
     #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
         max_epochs=20,
         accelerator='auto',
-        devices=1,
+        devices=[1],
         log_every_n_steps=20,
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
