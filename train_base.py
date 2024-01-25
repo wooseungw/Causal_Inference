@@ -15,11 +15,11 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 def train():
     # 모델 인스턴스 생성
     #패치 사이즈
-    p_s = 16
+    p_s = 4
     batch_size = 256
     model_kwargs = {
-        'embed_dim': 128,
-        'hidden_dim': 128*4,
+        'embed_dim': 256,
+        'hidden_dim': 512,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
@@ -30,9 +30,7 @@ def train():
         'head_num_layers': 6 
     }
     # initialise the wandb logger and name your wandb project
-    wandb_logger = WandbLogger(project='casual_inference',
-                               name='vit_trans_em128_hm6',
-                               )
+    wandb_logger = WandbLogger(project='casual_inference')
     
     test_transform = transforms.Compose(
         [
@@ -66,13 +64,13 @@ def train():
     
     # 체크포인트 콜백 설정
     checkpoint_callback = ModelCheckpoint(
-        dirpath="model_checkpoint/vit_trans_em128_hn6",
+        dirpath="model_checkpoint/vit_trans_em256",
         filename="ViT_{epoch}-{val_loss:.2f}",
         save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
         monitor="val_loss",  # 모니터링할 메트릭
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
-    logger_step = len(train_dataset) // batch_size
+
     model = ViT_trans(model_kwargs, lr=1e-3)
     #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습

@@ -157,8 +157,8 @@ class VisionTransformer(nn.Module):
         x = self.embedding(x)
         
         B, T, _ = x.shape
-        #cls_token = self.cls_token.repeat(B, 1, 1)
-        #x = torch.cat([cls_token, x], dim=1)
+        cls_token = self.cls_token.repeat(B, 1, 1)
+        x = torch.cat([cls_token, x], dim=1)
         x = x + self.pos_embedding[:, : T]
 
         # Apply Transforrmer
@@ -292,8 +292,7 @@ class ViT_QA2(BaseLightningClass):
             #print(embeddings.shape)
             if  i > 0:
                 for block in self.Crosstransformer:
-                    embeddings = block(Q_embedding,embeddings)
-                cls_list.append(embeddings[0])
+                    embeddings = block(embeddings,Q_embedding)
             else:
                 cls_token = self.cls_token.repeat(1, B, 1) # [1, B, embed_dim]
                 Q_embedding =  torch.cat([cls_token, embeddings], dim=0) # shape (65, 16, 256)
