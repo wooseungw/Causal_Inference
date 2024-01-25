@@ -27,7 +27,7 @@ def get_all_subdirectories(parent_directory):
 category_list = get_subdirectories(os.path.join(os.getcwd(),"Dataset/Train/Image"))
 all_list = get_all_subdirectories(os.path.join(os.getcwd(),"Dataset/Train/Image"))
 print(all_list)
-
+print(len(all_list))
 
 class BaseDataset(Dataset):
     def __init__(self, loc=os.path.join(os.getcwd(), "Dataset/Train/Image"), istrain=True):
