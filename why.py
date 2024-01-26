@@ -7,8 +7,10 @@ from torchvision import transforms
 from PIL import ImageFile
 from pytorch_lightning.loggers import WandbLogger
 import torch
-from ViT import ViT_trans
-from ViT_QA import *
+#from ViT import *
+#from ViT_QA import *
+from ViT_LBW import *
+#from Baseline_ViT_trans import *
 from pytorch_lightning.callbacks import ModelCheckpoint
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -16,10 +18,11 @@ def train():
     # 모델 인스턴스 생성
     #패치 사이즈
     p_s = 16
-    batch_size = 128
     model_kwargs = {
-        'embed_dim': 256,
-        'hidden_dim': 256*4,
+        #'embed_dim': (p_s*p_s*3),
+        #'hidden_dim': (p_s*p_s*3)*4,
+        'embed_dim': 128,
+        'hidden_dim': 128*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
@@ -27,7 +30,7 @@ def train():
         'patch_size': p_s,
         'num_patches': (128//p_s)**2,
         'dropout': 0.1,
-        'head_num_layers': 2 
+        'head_num_layers': 6 
     }
     # initialise the wandb logger and name your wandb project
     wandb_logger = WandbLogger(project='casual_inference')
@@ -49,36 +52,43 @@ def train():
             transforms.Normalize([0.7760, 0.7491, 0.7213], [0.2949, 0.3032, 0.3314]),
         ]
     )
-
+    
     dir = os.path.join(os.getcwd(),"Dataset/Train/Image")
+
     train_dataset = QADataset(transform = train_transform, loc = dir)
     print(len(train_dataset))
     val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
     print(len(val_dataset))
 
     # DataLoader 설정
-    train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
-    val_loader = DataLoader(val_dataset, batch_size=batch_size,num_workers=6,pin_memory=True, persistent_workers=True)
+    ## 연구실
+    batch_size = 256
+    num_workers = 8
+    ## 집
+    # batch_size = 64
+    # num_workers = 4
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True,num_workers=num_workers,pin_memory=True, persistent_workers=True) 
+    val_loader = DataLoader(val_dataset, batch_size=batch_size,num_workers=num_workers,pin_memory=True, persistent_workers=True)
 
     #torch.set_float32_matmul_precision('high')
     
     # 체크포인트 콜백 설정
     checkpoint_callback = ModelCheckpoint(
-        dirpath="model_checkpoint/vit_QA2",
+        dirpath="model_checkpoint/vit",
         filename="ViT_{epoch}-{val_loss:.2f}",
         save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
         monitor="val_loss",  # 모니터링할 메트릭
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
-    logger_step = len(train_dataset) // batch_size
-    model = ViT_trans(model_kwargs, lr=1e-3)
+
+    model = ViT_cls_cross14(model_kwargs, lr=1e-3)
+    #model = ViT_trans(model_kwargs, lr=1e-3)
     #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
-        enable_checkpointing=True,
-        max_epochs=20,
+        max_epochs=30,
         accelerator='auto',
-        devices=1,
+        devices=[1],
         log_every_n_steps=10*(256//batch_size),
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
@@ -89,3 +99,6 @@ if __name__ == '__main__':
     # Windows 환경에서 멀티프로세싱을 사용할 때 필요
     torch.multiprocessing.freeze_support()
     train()
+
+## 연구실 데스크탑 train 시 아래 코드 사용 ##
+# python -Xfrozen_modules=off -m train_lbw

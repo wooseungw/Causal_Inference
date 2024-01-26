@@ -92,7 +92,51 @@ class CrossAttentionBlock(nn.Module):
         # x = x[0]
         ##
         t, b, e =  x.shape
-        y = x[0].view(1, b, e)
+        y = x[:2].view(2, b, e)
+        x = x[2:]
+        #print(y.shape, x.shape)
+        ##
+        inp_x = self.layer_norm_1(x)
+        inp_y = self.layer_norm_1(y)
+        y = y + self.attn(inp_y, inp_x, inp_x)[0]
+        #print("Cross attention",x.shape)
+        y = y + self.linear(self.layer_norm_2(y))
+        ##
+        #print(y.shape, x.shape)
+        x = torch.cat((y,x), dim=0)
+        #print(x.shape)
+        ##
+        return x
+
+class CrossAttentionBlock14(nn.Module):
+    def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
+        """
+        Inputs:
+            embed_dim - Dimensionality of input and attention feature vectors
+            hidden_dim - Dimensionality of hidden layer in feed-forward network
+                         (usually 2-4x larger than embed_dim)
+            num_heads - Number of heads to use in the Multi-Head Attention block
+            dropout - Amount of dropout to apply in the feed-forward network
+        """
+        super().__init__()
+
+        self.layer_norm_1 = nn.LayerNorm(embed_dim)
+        self.attn = nn.MultiheadAttention(embed_dim, num_heads)
+        self.layer_norm_2 = nn.LayerNorm(embed_dim)
+        self.linear = nn.Sequential(
+            nn.Linear(embed_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, embed_dim),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x):
+        # y = x[1]
+        # x = x[0]
+        ##
+        t, b, e =  x.shape
+        y = x[:1].view(1, b, e)
         x = x[1:]
         #print(y.shape, x.shape)
         ##
@@ -107,7 +151,51 @@ class CrossAttentionBlock(nn.Module):
         #print(x.shape)
         ##
         return x
-    
+
+class CrossAttentionBlock41(nn.Module):
+    def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
+        """
+        Inputs:
+            embed_dim - Dimensionality of input and attention feature vectors
+            hidden_dim - Dimensionality of hidden layer in feed-forward network
+                         (usually 2-4x larger than embed_dim)
+            num_heads - Number of heads to use in the Multi-Head Attention block
+            dropout - Amount of dropout to apply in the feed-forward network
+        """
+        super().__init__()
+
+        self.layer_norm_1 = nn.LayerNorm(embed_dim)
+        self.attn = nn.MultiheadAttention(embed_dim, num_heads)
+        self.layer_norm_2 = nn.LayerNorm(embed_dim)
+        self.linear = nn.Sequential(
+            nn.Linear(embed_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, embed_dim),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x):
+        # y = x[1]
+        # x = x[0]
+        ##
+        t, b, e =  x.shape
+        y = x[:4].view(4, b, e)
+        x = x[4:]
+        #print(y.shape, x.shape)
+        ##
+        inp_x = self.layer_norm_1(x)
+        inp_y = self.layer_norm_1(y)
+        y = y + self.attn(inp_y, inp_x, inp_x)[0]
+        #print("Cross attention",x.shape)
+        y = y + self.linear(self.layer_norm_2(y))
+        ##
+        #print(y.shape, x.shape)
+        x = torch.cat((y,x), dim=0)
+        #print(x.shape)
+        ##
+        return x   
+
 class VisionTransformer(nn.Module):
     def __init__(
         self,
@@ -174,7 +262,7 @@ class VisionTransformer(nn.Module):
         # Add CLS token and positional encoding
         cls_token = self.cls_token.repeat(B, 1, 1)
         x = torch.cat([cls_token, x], dim=1)
-
+        #print('T', T)
         x = x + self.pos_embedding[:, : T + 1]
 
         # Apply Transforrmer
@@ -414,9 +502,9 @@ class ViT_cls_cross(BaseLightningClass):
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
         self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
         self.dropout = nn.Dropout(model_kwargs['dropout'])
-        self.transformer = nn.Sequential(
-            *(AttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
-        )
+        # self.transformer = nn.Sequential(
+        #     *(AttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
+        # )
         self.Crosstransformer = nn.Sequential(
             *(CrossAttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
         )
@@ -436,11 +524,24 @@ class ViT_cls_cross(BaseLightningClass):
         #print("get_embeding의 임베딩 모양",embeddings.shape)
         embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
         #print("stack을 쌓은 뒤 임베딩 모양",embeddings.shape)
+        '''
         ###############################
         embeddings = embeddings.permute(1,0,2)
         ca_out = self.Crosstransformer(embeddings)
-        
         ################################
+        '''
+        ################################
+        B, _, _ = embeddings.shape
+        cls_token = self.cls_token.repeat(B, 1, 1) # [B, 1, embed_dim]
+        #print("cls_token  모양",cls_token.shape)
+        embeddings = torch.cat([cls_token, embeddings], dim=1) # [B, 5, embed_dim]
+        #print("cls토큰이 결합 된 뒤 embeding 모양",embeddings.shape)
+        embeddings = embeddings + self.pos_embedding
+        embeddings = self.dropout(embeddings)
+        embeddings = embeddings.transpose(0, 1) # [5, B, embed_dim]
+        ca_out = self.Crosstransformer(embeddings)
+        ################################
+
         preds = self.mlp_head(ca_out[0]) # bsz, num_classes
         return preds
     
@@ -449,6 +550,119 @@ class ViT_cls_cross(BaseLightningClass):
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
         return [optimizer], [lr_scheduler]
 
+class ViT_cls_cross14(BaseLightningClass):
+    def __init__(self, model_kwargs, lr):
+        super().__init__()
+        self.save_hyperparameters()
+        self.model = VisionTransformer(**model_kwargs)
+        ##############################
+        self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
+        self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
+        self.dropout = nn.Dropout(model_kwargs['dropout'])
+        # self.transformer = nn.Sequential(
+        #     *(AttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
+        # )
+        self.Crosstransformer = nn.Sequential(
+            *(CrossAttentionBlock14(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
+        )
+        ##############################
+        self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
+                                      nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes']))
+        self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
+
+    def forward(self, x):
+        if isinstance(x, list) and all(isinstance(item, torch.Tensor) for item in x):
+            x = torch.stack(x).permute(1, 0, 2, 3, 4)
+            
+        embeddings_list = []
+        for imgs in x:
+            embeddings = self.model.get_embedding(imgs)  # shape (4, embedding_size)
+            embeddings_list.append(embeddings)
+        #print("get_embeding의 임베딩 모양",embeddings.shape)
+        embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
+        #print("stack을 쌓은 뒤 임베딩 모양",embeddings.shape)
+        '''
+        ###############################
+        embeddings = embeddings.permute(1,0,2)
+        ca_out = self.Crosstransformer(embeddings)
+        ################################
+        '''
+        ################################
+        B, _, _ = embeddings.shape
+        cls_token = self.cls_token.repeat(B, 1, 1) # [B, 1, embed_dim]
+        #print("cls_token  모양",cls_token.shape)
+        embeddings = torch.cat([cls_token, embeddings], dim=1) # [B, 5, embed_dim]
+        #print("cls토큰이 결합 된 뒤 embeding 모양",embeddings.shape)
+        embeddings = embeddings + self.pos_embedding
+        embeddings = self.dropout(embeddings)
+        embeddings = embeddings.transpose(0, 1) # [5, B, embed_dim]
+        ca_out = self.Crosstransformer(embeddings)
+        ################################
+
+        preds = self.mlp_head(ca_out[0]) # bsz, num_classes
+        return preds
+    
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
+        return [optimizer], [lr_scheduler]
+
+class ViT_cls_cross41(BaseLightningClass):
+    def __init__(self, model_kwargs, lr):
+        super().__init__()
+        self.save_hyperparameters()
+        self.model = VisionTransformer(**model_kwargs)
+        ##############################
+        self.cls_token = nn.Parameter(torch.randn(1, 1, model_kwargs['embed_dim']))
+        self.pos_embedding = nn.Parameter(torch.randn(1, 5, model_kwargs['embed_dim']))
+        self.dropout = nn.Dropout(model_kwargs['dropout'])
+        # self.transformer = nn.Sequential(
+        #     *(AttentionBlock(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
+        # )
+        self.Crosstransformer = nn.Sequential(
+            *(CrossAttentionBlock41(model_kwargs['embed_dim'], model_kwargs['hidden_dim'], model_kwargs['num_heads'], dropout=model_kwargs['dropout']) for _ in range(model_kwargs['head_num_layers']))
+        )
+        ##############################
+        self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
+                                      nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes']))
+        self.f1_cal = F1Score(num_classes=model_kwargs['num_classes'], task = 'multiclass')
+
+    def forward(self, x):
+        if isinstance(x, list) and all(isinstance(item, torch.Tensor) for item in x):
+            x = torch.stack(x).permute(1, 0, 2, 3, 4)
+            
+        embeddings_list = []
+        for imgs in x:
+            embeddings = self.model.get_embedding(imgs)  # shape (4, embedding_size)
+            embeddings_list.append(embeddings)
+        #print("get_embeding의 임베딩 모양",embeddings.shape)
+        embeddings = torch.stack(embeddings_list, 0) # bsz, 4, embdding_size(이미지 하나의 vit cls token representation dim)
+        #print("stack을 쌓은 뒤 임베딩 모양",embeddings.shape)
+        '''
+        ###############################
+        embeddings = embeddings.permute(1,0,2)
+        ca_out = self.Crosstransformer(embeddings)
+        ################################
+        '''
+        ################################
+        B, _, _ = embeddings.shape
+        cls_token = self.cls_token.repeat(B, 1, 1) # [B, 1, embed_dim]
+        #print("cls_token  모양",cls_token.shape)
+        embeddings = torch.cat([cls_token, embeddings], dim=1) # [B, 5, embed_dim]
+        #print("cls토큰이 결합 된 뒤 embeding 모양",embeddings.shape)
+        embeddings = embeddings + self.pos_embedding
+        embeddings = self.dropout(embeddings)
+        embeddings = embeddings.transpose(0, 1) # [5, B, embed_dim]
+        ca_out = self.Crosstransformer(embeddings)
+        ################################
+
+        preds = self.mlp_head(ca_out[0]) # bsz, num_classes
+        return preds
+    
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.5)
+        return [optimizer], [lr_scheduler]
 
 if __name__ == "__main__":
     
@@ -466,11 +680,11 @@ if __name__ == "__main__":
         'num_layers': 6,
         'num_classes': 3,
         'patch_size': p_s,
-        'num_patches': (128//p_s)**2,
+        'num_patches': (128//p_s)**2*4+1,
         'dropout': 0.1,
         'head_num_layers': 2 
     }
-    model = ViT_cls_cross(model_kwargs,lr=1e-3)
+    model = ViT_cls_cross41(model_kwargs,lr=1e-3)
     #model = ViT_QA_cos(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000

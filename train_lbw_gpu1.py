@@ -17,18 +17,18 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 def train():
     # 모델 인스턴스 생성
     #패치 사이즈
-    p_s = 16
+    p_s = 4
     model_kwargs = {
         #'embed_dim': (p_s*p_s*3),
         #'hidden_dim': (p_s*p_s*3)*4,
         'embed_dim': 256,
-        'hidden_dim': 256*4,
+        'hidden_dim': 256*2,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
         'num_classes': 3,
         'patch_size': p_s,
-        'num_patches': (128//p_s)**2,
+        'num_patches': 4097,
         'dropout': 0.1,
         'head_num_layers': 2 
     }
@@ -62,7 +62,7 @@ def train():
 
     # DataLoader 설정
     ## 연구실
-    batch_size = 128
+    batch_size = 16
     num_workers = 8
     ## 집
     # batch_size = 64
@@ -81,8 +81,8 @@ def train():
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
 
-    model = ViT_cls_cross(model_kwargs, lr=1e-3)
-    #model = ViT_trans(model_kwargs, lr=1e-3)
+    #model = ViT_cls_cross(model_kwargs, lr=1e-3)
+    model = ViT_trans(model_kwargs, lr=1e-3)
     #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
