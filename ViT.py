@@ -365,5 +365,5 @@ if __name__ == "__main__":
     print('Trainable Parameters: %.3fM' % parameters)
     
     out = model(img)
-    
+    print("예측: ",out)
     print("Shape of out :", out.shape)      # [B, num_classes]

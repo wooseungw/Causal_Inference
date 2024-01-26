@@ -22,11 +22,6 @@ def train():
     128 -> 20 
     256 -> 10
     '''
-    dir = os.path.join(os.getcwd(),"Dataset/Train/Image")
-    train_dataset = QADataset(transform = train_transform, loc = dir)
-    print(len(train_dataset))
-    val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
-    print(len(val_dataset))
     log_step = 10*(256//batch_size)
     model_kwargs = {
         'embed_dim': 128,
@@ -41,7 +36,7 @@ def train():
         'head_num_layers': 2 
     }
     # initialise the wandb logger and name your wandb project
-    wandb_logger = WandbLogger(project='casual_inference')
+    wandb_logger = WandbLogger(project='casual_inference',name='vit_cross_all_em128')
     
     test_transform = transforms.Compose(
         [
@@ -61,7 +56,11 @@ def train():
         ]
     )
 
-    
+    dir = os.path.join(os.getcwd(),"Dataset/Train/Image")
+    train_dataset = QADataset(transform = train_transform, loc = dir)
+    print(len(train_dataset))
+    val_dataset = QADataset(transform = test_transform, loc = dir, istrain =  False)
+    print(len(val_dataset))
 
     # DataLoader 설정
     train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True,num_workers=6,pin_memory=True, persistent_workers=True) 
@@ -71,15 +70,15 @@ def train():
     
     # 체크포인트 콜백 설정
     checkpoint_callback = ModelCheckpoint(
-        dirpath=f"model_checkpoint/vit_trans_{batch_size}",
+        dirpath=f"model_checkpoint/vit_cross_all_{batch_size}",
         filename="ViT_{epoch}-{val_loss:.2f}",
         save_top_k=3,  # 성능이 가장 좋은 상위 3개의 체크포인트만 저장
         monitor="val_loss",  # 모니터링할 메트릭
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
     
-    model = ViT_trans(model_kwargs, lr=1e-3)
-    #model = ViT_QA_cos(model_kwargs, lr=1e-3)
+    #model = ViT_trans(model_kwargs, lr=1e-3)
+    model = ViT_QA2(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
         enable_checkpointing=True,

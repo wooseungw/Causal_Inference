@@ -157,9 +157,9 @@ class VisionTransformer(nn.Module):
         x = self.embedding(x)
         
         B, T, _ = x.shape
-        #cls_token = self.cls_token.repeat(B, 1, 1)
-        #x = torch.cat([cls_token, x], dim=1)
-        x = x + self.pos_embedding[:, : T]
+        cls_token = self.cls_token.repeat(B, 1, 1)
+        x = torch.cat([cls_token, x], dim=1)
+        x = x + self.pos_embedding[:, : T+1]
 
         # Apply Transforrmer
         x = self.dropout(x)
@@ -292,19 +292,14 @@ class ViT_QA2(BaseLightningClass):
             #print(embeddings.shape)
             if  i > 0:
                 for block in self.Crosstransformer:
-                    embeddings = block(Q_embedding,embeddings)
+                    embeddings = block(embeddings,Q_embedding)
                 cls_list.append(embeddings[0])
             else:
-                cls_token = self.cls_token.repeat(1, B, 1) # [1, B, embed_dim]
-                Q_embedding =  torch.cat([cls_token, embeddings], dim=0) # shape (65, 16, 256)
+                Q_embedding =  embeddings # shape (65, 16, 256)
                 
-            
-            
             #print("임베딩 모양",embeddings.shape)
-        
-        
         cls = torch.stack(cls_list,0)
-        cls = cls.permute(1, 0, 2).contiguous().view(16, -1)  # 최종 모양: (16, 256*3)
+        cls = cls.permute(1, 0, 2).contiguous().view(B, -1)  # 최종 모양: (16, 256*3)
         #print("cls 차원(append된것과 차이 없음): ",cls.shape)
         ##################원래 mlp##############
         preds = self.mlp_head(cls) # bsz, num_classes
@@ -333,8 +328,8 @@ if __name__ == "__main__":
     #패치 사이즈
     p_s = 16
     model_kwargs = {
-        'embed_dim': (256),
-        'hidden_dim': (256)*4,
+        'embed_dim': (128),
+        'hidden_dim': (128)*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
