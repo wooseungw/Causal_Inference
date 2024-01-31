@@ -684,8 +684,8 @@ if __name__ == "__main__":
         'dropout': 0.1,
         'head_num_layers': 2 
     }
-    model = ViT_cls_cross41(model_kwargs,lr=1e-3)
-    #model = ViT_QA_cos(model_kwargs,lr=1e-3)
+    #model = ViT_cls_cross14(model_kwargs,lr=1e-3)
+    model = ViT_QA_cos(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)

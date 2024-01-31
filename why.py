@@ -17,12 +17,12 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 def train():
     # 모델 인스턴스 생성
     #패치 사이즈
-    p_s = 16
+    p_s = 8
     model_kwargs = {
         #'embed_dim': (p_s*p_s*3),
         #'hidden_dim': (p_s*p_s*3)*4,
         'embed_dim': 128,
-        'hidden_dim': 128*4,
+        'hidden_dim': 128*2,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
@@ -30,7 +30,7 @@ def train():
         'patch_size': p_s,
         'num_patches': (128//p_s)**2,
         'dropout': 0.1,
-        'head_num_layers': 6 
+        'head_num_layers': 2 
     }
     # initialise the wandb logger and name your wandb project
     wandb_logger = WandbLogger(project='casual_inference')
@@ -62,7 +62,7 @@ def train():
 
     # DataLoader 설정
     ## 연구실
-    batch_size = 256
+    batch_size = 128
     num_workers = 8
     ## 집
     # batch_size = 64

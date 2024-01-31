@@ -28,7 +28,7 @@ def train():
         'num_layers': 6,
         'num_classes': 3,
         'patch_size': p_s,
-        'num_patches': 4097,
+        'num_patches': (128//p_s)**2,
         'dropout': 0.1,
         'head_num_layers': 2 
     }
@@ -62,8 +62,8 @@ def train():
 
     # DataLoader 설정
     ## 연구실
-    batch_size = 16
-    num_workers = 8
+    batch_size = 64
+    num_workers = 16
     ## 집
     # batch_size = 64
     # num_workers = 4
@@ -81,15 +81,15 @@ def train():
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
 
-    #model = ViT_cls_cross(model_kwargs, lr=1e-3)
+    #model = ViT_cls_cross14(model_kwargs, lr=1e-3)
     model = ViT_trans(model_kwargs, lr=1e-3)
     #model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
-        max_epochs=20,
+        max_epochs=30,
         accelerator='auto',
         devices=[1],
-        log_every_n_steps=20,
+        log_every_n_steps=10*(256//batch_size),
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
     )

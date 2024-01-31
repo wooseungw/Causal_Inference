@@ -62,7 +62,7 @@ def train():
 
     # DataLoader 설정
     ## 연구실
-    batch_size = 256
+    batch_size = 128
     num_workers = 8
     ## 집
     # batch_size = 64
@@ -81,9 +81,9 @@ def train():
         mode="min",  # "min"은 val_loss를 최소화하는 체크포인트를 저장
     )
 
-    model = ViT_cls_cross14(model_kwargs, lr=1e-3)
+    #model = ViT_cls_cross14(model_kwargs, lr=1e-3)
     #model = ViT_trans(model_kwargs, lr=1e-3)
-    #model = ViT_QA_cos(model_kwargs, lr=1e-3)
+    model = ViT_QA_cos(model_kwargs, lr=1e-3)
     # 트레이너 설정 및 학습
     trainer = pl.Trainer(
         max_epochs=30,
