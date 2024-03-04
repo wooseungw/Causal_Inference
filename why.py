@@ -12,6 +12,7 @@ import torch
 from ViT_LBW import *
 #from Baseline_ViT_trans import *
 from pytorch_lightning.callbacks import ModelCheckpoint
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def train():
@@ -88,10 +89,11 @@ def train():
     trainer = pl.Trainer(
         max_epochs=30,
         accelerator='auto',
-        devices=[1],
+        devices='auto',
         log_every_n_steps=10*(256//batch_size),
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
+        strategy='ddp'
     )
     trainer.fit(model, train_loader, val_loader)
     
@@ -99,6 +101,3 @@ if __name__ == '__main__':
     # Windows 환경에서 멀티프로세싱을 사용할 때 필요
     torch.multiprocessing.freeze_support()
     train()
-
-## 연구실 데스크탑 train 시 아래 코드 사용 ##
-# python -Xfrozen_modules=off -m train_lbw
