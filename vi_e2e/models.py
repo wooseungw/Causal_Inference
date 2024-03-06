@@ -27,7 +27,7 @@ from torchmetrics import F1Score
 from torchmetrics.functional import f1_score
 from collections import defaultdict
 
-
+from torchprofile import profile_macs
 #
 
 
@@ -658,10 +658,11 @@ class ViT_trans(BaseLighteningClass):
         ##############################
         self.mlp_head = nn.Sequential(nn.LayerNorm(model_kwargs['embed_dim']),
                                       nn.Linear(model_kwargs['embed_dim'], model_kwargs['num_classes']))
-        self.f1_cal = F1Score(num_classes=3)
+        self.f1_cal = F1Score(num_classes=3,task = 'multiclass')
 
     def forward(self, x):
-        x = torch.stack(x).permute(1, 0, 2, 3, 4)
+        if isinstance(x, list) and all(isinstance(item, torch.Tensor) for item in x):
+            x = torch.stack(x).permute(1, 0, 2, 3, 4)
         embeddings_list = []
         for imgs in x:
             embeddings = self.model.get_embedding(imgs)  # shape (4, embedding_size)
@@ -689,16 +690,40 @@ class ViT_trans(BaseLighteningClass):
 
 if __name__ == "__main__":
     
-    img = torch.ones([1, 16, 3, 224, 224]).cuda()
-    
-    model = ViViT_SP(224, 16, 100, 16).cuda()
+    img = torch.ones([1, 4, 3, 128, 128])
+    model_kwargs={
+        'embed_dim': 256,
+        'hidden_dim': 512,
+        'num_heads': 8,
+        'num_layers': 6,
+        'patch_size': 4,
+        'num_channels': 3,
+        'num_patches': 4097,
+        'num_classes': 3,
+        'dropout': 0.1,
+        'head_num_layers': 2
+    }
+    model = ViT_trans(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
-    
+    flops = profile_macs(model, img)
+    print("flops:",flops)
     out = model(img)
     
     print("Shape of out :", out.shape)      # [B, num_classes]
 
     
-    
+    import time
+    # 모델을 평가 모드로 설정
+    model.eval()
+
+    # 추론 시간 측정
+    start_time = time.time()
+    with torch.no_grad():
+        output = model(img)
+    end_time = time.time()
+
+    # 추론에 걸린 시간 계산
+    inference_time = end_time - start_time
+    print(f"Inference Time: {inference_time} seconds")

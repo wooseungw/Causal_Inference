@@ -17,6 +17,8 @@ from torchvision import transforms, datasets
 import timm  # PyTorch Image Models 라이브러리
 import numpy as np
 
+from ViT_LBW import ViT_cls_cross41, ViT_QA_cos
+from torchprofile import profile_macs
 
 class AttentionBlock(nn.Module):
     def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0):
@@ -177,7 +179,7 @@ class VisionTransformer(nn.Module):
 
         # Add CLS token and positional encoding
         cls_token = self.cls_token.repeat(B, 1, 1)
-        x = torch.cat([cls_token, x], dim=1)
+        x = torch.cat([cls_token, x], dim=1)    
         x = x + self.pos_embedding[:, : T + 1]
 
         # Apply Transforrmer
@@ -311,7 +313,6 @@ class ViT_QA2(BaseLightningClass):
         #cos_similarities = F.cosine_similarity(query_seq, candidate_seqs, dim=2)
         #cos_similarities = cos_similarities.transpose(1,0)
         
-        
         return preds
     
     def configure_optimizers(self):
@@ -321,7 +322,7 @@ class ViT_QA2(BaseLightningClass):
     
 if __name__ == "__main__":
     
-    img = torch.ones([16, 4, 3, 128, 128])
+    img = torch.ones([1, 4, 3, 128, 128])
     print("Is x a list of tensors?", all(isinstance(item, torch.Tensor) for item in img))
     print("Length of x:", len(img))
     
@@ -339,12 +340,26 @@ if __name__ == "__main__":
         'dropout': 0.1,
         'head_num_layers': 2 
     }
-    #model = ViT_trans(model_kwargs,lr=1e-3)
     model = ViT_QA2(model_kwargs,lr=1e-3)
+    #model = ViT_QA_cos(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
-    
+    flops = profile_macs(model, img)
+    print("flops: ",flops)
     out = model(img)
     
     print("Shape of out :", out.shape)      # [B, num_classes]
+    import time
+    # 모델을 평가 모드로 설정
+    model.eval()
+
+    # 추론 시간 측정
+    start_time = time.time()
+    with torch.no_grad():
+        output = model(img)
+    end_time = time.time()
+
+    # 추론에 걸린 시간 계산
+    inference_time = end_time - start_time
+    print(f"Inference Time: {inference_time} seconds")
