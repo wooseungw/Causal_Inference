@@ -18,12 +18,12 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 def train():
     # 모델 인스턴스 생성
     #패치 사이즈
-    p_s = 8
+    p_s = 16
     model_kwargs = {
         #'embed_dim': (p_s*p_s*3),
         #'hidden_dim': (p_s*p_s*3)*4,
         'embed_dim': 128,
-        'hidden_dim': 128*2,
+        'hidden_dim': 128*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
@@ -89,11 +89,11 @@ def train():
     trainer = pl.Trainer(
         max_epochs=30,
         accelerator='auto',
-        devices='auto',
+        devices=1,
         log_every_n_steps=10*(256//batch_size),
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
-        strategy='ddp'
+        #strategy='ddp'
     )
     trainer.fit(model, train_loader, val_loader)
     
