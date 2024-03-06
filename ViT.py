@@ -2,7 +2,7 @@ import typing
 
 from BaseLightningClass import BaseLightningClass
 from module import Attention, PreNorm, FeedForward
-
+from ptflops import get_model_complexity_info
 import pytorch_lightning as pl
 import torch
 from einops.layers.torch import Rearrange
@@ -16,6 +16,8 @@ from collections import defaultdict
 from torchvision import transforms, datasets
 import timm  # PyTorch Image Models 라이브러리
 import numpy as np
+
+from torchprofile import profile_macs
 
 def img_to_patch(x, patch_size, flatten_channels=True):
     """
@@ -340,15 +342,15 @@ class ViT_QA(BaseLightningClass):
 
 if __name__ == "__main__":
     
-    img = torch.ones([12, 4, 3, 128, 128])
+    img = torch.ones([1, 4, 3, 128, 128])
     print("Is x a list of tensors?", all(isinstance(item, torch.Tensor) for item in img))
     print("Length of x:", len(img))
     
     #패치 사이즈
     p_s = 16
     model_kwargs = {
-        'embed_dim': (256),
-        'hidden_dim': (256)*4,
+        'embed_dim': (128),
+        'hidden_dim': (128)*4,
         'num_channels': 3,
         'num_heads': 8,
         'num_layers': 6,
@@ -364,6 +366,21 @@ if __name__ == "__main__":
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
     
+    flops = profile_macs(model, img)
+    print("flops:",flops)
     out = model(img)
-    print("예측: ",out)
+    
     print("Shape of out :", out.shape)      # [B, num_classes]
+    import time
+    # 모델을 평가 모드로 설정
+    model.eval()
+
+    # 추론 시간 측정
+    start_time = time.time()
+    with torch.no_grad():
+        output = model(img)
+    end_time = time.time()
+
+    # 추론에 걸린 시간 계산
+    inference_time = end_time - start_time
+    print(f"Inference Time: {inference_time} seconds")
