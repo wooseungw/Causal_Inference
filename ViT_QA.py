@@ -17,7 +17,7 @@ from torchvision import transforms, datasets
 import timm  # PyTorch Image Models 라이브러리
 import numpy as np
 
-from ViT_LBW import ViT_cls_cross41, ViT_QA_cos
+from ViT_LBW import ViT_cls_cross14, ViT_QA_cos
 from torchprofile import profile_macs
 
 class AttentionBlock(nn.Module):
@@ -327,7 +327,7 @@ if __name__ == "__main__":
     print("Length of x:", len(img))
     
     #패치 사이즈
-    p_s = 16
+    p_s = 8
     model_kwargs = {
         'embed_dim': (128),
         'hidden_dim': (128)*4,
@@ -340,8 +340,9 @@ if __name__ == "__main__":
         'dropout': 0.1,
         'head_num_layers': 2 
     }
-    model = ViT_QA2(model_kwargs,lr=1e-3)
-    #model = ViT_QA_cos(model_kwargs,lr=1e-3)
+    #model = ViT_QA2(model_kwargs,lr=1e-3)
+    #model = ViT_cls_cross14(model_kwargs,lr=1e-3)
+    model = ViT_QA_cos(model_kwargs,lr=1e-3)
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
